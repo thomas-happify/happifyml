@@ -1,8 +1,9 @@
-import logging
 import argparse
+import logging
 import os
-import sys
 import platform
+import sys
+
 # from version import VERSION
 from happifyml.cli import project
 from happifyml.version import VERSION
@@ -11,19 +12,15 @@ logger = logging.getLogger(__name__)
 
 
 def get_parser() -> argparse.ArgumentParser:
-    
+
     parser = argparse.ArgumentParser(
         prog="happifyml",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-        description="HappifyML command line interface."
+        description="HappifyML command line interface.",
     )
 
     parser.add_argument(
-        "-V",
-        "--version",
-        action="store_true",
-        default=argparse.SUPPRESS,
-        help="Print installed HappifyML version"
+        "-V", "--version", action="store_true", default=argparse.SUPPRESS, help="Print installed HappifyML version"
     )
 
     main_parser = argparse.ArgumentParser(add_help=False)
@@ -33,8 +30,8 @@ def get_parser() -> argparse.ArgumentParser:
 
     project.register(subparsers, parents=main_parsers)
 
-
     return parser
+
 
 def print_version() -> None:
     """Prints version information of HappifyML and python."""
@@ -44,6 +41,7 @@ def print_version() -> None:
     print(f"Python Version    :         {platform.python_version()}")
     print(f"Operating System  :         {platform.platform()}")
     print(f"Python Path       :         {sys.executable}")
+
 
 def main():
     arg_parser = get_parser()
@@ -59,13 +57,13 @@ def main():
 
         elif hasattr(cmd, "version"):
             print_version()
-            
+
         else:
             # user has not provided a subcommand, let's print the help
             logger.error("No command specified.")
             arg_parser.print_help()
             sys.exit(1)
-            
+
     except Exception as e:
         logger.debug("Failed to run CLI command due to an exception.", exc_info=e)
         print(f"{e.__class__.__name__}: {e}")

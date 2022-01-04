@@ -23,4 +23,3 @@ clean:
 	find . | grep -E ".ipynb_checkpoints" | xargs rm -rf
 	rm -f .coverage
 	rm -f coverage.xml
-

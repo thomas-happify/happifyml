@@ -1,5 +1,3 @@
-
-   
 """
 Simple check list from AllenNLP repo: https://github.com/allenai/allennlp/blob/master/setup.py
 PEP0440 compatible formatted version, see:
@@ -17,7 +15,7 @@ We use exec here so we don't import allennlp whilst setting up.
 """
 import re
 
-from setuptools import setup, find_namespace_packages
+from setuptools import find_namespace_packages, setup
 
 _dependencies = [
     "questionary",
@@ -70,5 +68,5 @@ setup(
     # extras_require=extras,
     entry_points={"console_scripts": ["happifyml=happifyml.__main__:main"]},
     install_requires=install_requires,
-    packages=find_namespace_packages(), # required for git submodules
+    packages=find_namespace_packages(),  # required for git submodules
 )

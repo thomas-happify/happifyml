@@ -2,8 +2,8 @@ from argparse import ArgumentParser, _SubParsersAction
 
 SubParserAction = _SubParsersAction
 
-class BaseCLICommand:
 
+class BaseCLICommand:
     def register(parser: SubParserAction, parent: ArgumentParser):
         raise NotImplementedError
 

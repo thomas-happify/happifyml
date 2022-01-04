@@ -1,21 +1,21 @@
-from re import template
-from . import BaseCLICommand, SubParserAction
-from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter, Namespace
-from typing import List
 import os
-import sys
-from pathlib import Path
 import shutil
+import sys
+from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
+from pathlib import Path
+from re import template
+from typing import List
+
 import questionary
+
 from happifyml.utils.cli import print_error_exit, print_success, print_success_exit
 
+from . import BaseCLICommand, SubParserAction
 
 
-def register(
-    subparsers: SubParserAction, parents: List[ArgumentParser]
-) -> None:
+def register(subparsers: SubParserAction, parents: List[ArgumentParser]) -> None:
     parser = subparsers.add_parser(
-        "init",        
+        "init",
         parents=parents,
         help="initialize a new project",
         formatter_class=ArgumentDefaultsHelpFormatter,
@@ -34,10 +34,7 @@ def register(
     )
 
     project_parser.add_argument(
-        "--name", 
-        type=str, 
-        default="new_project", 
-        help="Project/Model name for the new project"
+        "--name", type=str, default="new_project", help="Project/Model name for the new project"
     )
 
     project_parser.set_defaults(func=init_project)
@@ -51,16 +48,13 @@ def register(
     )
 
     deploy_parser.add_argument(
-        "--name", 
-        type=str, 
-        default="new_deployment", 
-        help="Project/Model name for the new deployment"
+        "--name", type=str, default="new_deployment", help="Project/Model name for the new deployment"
     )
 
     deploy_parser.set_defaults(func=init_deployment)
 
 
-def init_deployment(args:Namespace) -> None:
+def init_deployment(args: Namespace) -> None:
     path = args.name
 
     if not os.path.isdir(path):
@@ -79,7 +73,7 @@ def init_project(args: Namespace) -> None:
         _ask_create(path)
 
     if os.path.exists(path):
-    # if len(os.listdir(path)) > 0:
+        # if len(os.listdir(path)) > 0:
         _ask_overwrite(path)
 
     create_project(path)
@@ -106,12 +100,12 @@ def _ask_overwrite(path):
 
 
 def create_project(path) -> None:
-    import pkg_resources
     from distutils.dir_util import copy_tree
+
+    import pkg_resources
 
     os.chdir(path)
     template_path = pkg_resources.resource_filename(__name__, " ")
     template_path = Path(template_path).parents[1] / "templates" / "pl_research_template"
     copy_tree(template_path, ".")
     print(f"Created project directory at {path}")
-
