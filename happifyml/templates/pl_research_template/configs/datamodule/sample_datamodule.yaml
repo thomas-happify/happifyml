@@ -1,0 +1,10 @@
+_target_: src.datamodules.sample_datamodule.SampleDataModule
+data_dir: ${data_dir} # data_dir is specified in config.yaml. usually do touch this
+train_file: "train.csv"
+validation_file: "test.csv"
+preprocessing_num_workers: null
+overwrite_cache: false
+train_batch_size: 2
+eval_batch_size: 2
+max_seq_length: 512
+mlm_probability: 0.2

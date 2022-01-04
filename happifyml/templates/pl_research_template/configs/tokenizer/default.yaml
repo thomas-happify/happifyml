@@ -1,0 +1,4 @@
+# _target_: src.models.tokenizer.Tokenizer # use this if need to customized tokenization process
+_target_: null
+pretrained_model_name_or_path: ${model.model_name_or_path}
+use_fast: false # set to true if not using tokenizer.vocab functions

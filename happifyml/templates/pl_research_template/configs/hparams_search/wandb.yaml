@@ -1,0 +1,41 @@
+program: run.py
+
+project: project_name
+
+description: "project description"
+
+method: bayes
+
+metric:
+  name: val_loss
+  goal: minimize
+
+parameters:
+  model.lr:
+    distribution: uniform
+    min: 5e-05
+    max: 1e-04
+  model.weight_decay:
+    distribution: uniform
+    min: 0.1
+    max: 0.5
+  trainer.accumulate_grad_batches:
+    value: 1
+  datamodule.batch_size:
+    value: 2
+  trainer.max_epochs:
+    value: 4
+  trainer.gpus:
+    value: 1
+
+early_terminate:
+  type: hyperband
+  s: 2
+  eta: 3
+  max_iter: 2
+
+command:
+  - ${interpreter}
+  - ${program}
+  - ${args_no_hyphens}
+  - logger=wandb

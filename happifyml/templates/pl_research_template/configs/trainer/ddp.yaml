@@ -1,0 +1,5 @@
+defaults:
+  - default.yaml # inherit from ddp trainer conf
+
+gpus: 2
+accelerator: ddp
