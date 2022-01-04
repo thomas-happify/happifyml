@@ -1,6 +1,0 @@
-_target_: src.models.sample_model.Model
-model_name_or_path: "xlm-roberta-base"
-weight_decay: 0.0
-learning_rate: 5e-5
-lr_scheduler_type: "linear"
-warmup_steps_ratio: 0.06
