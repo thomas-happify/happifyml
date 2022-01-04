@@ -4,7 +4,7 @@ import os
 import sys
 import platform
 # from version import VERSION
-from happifyml.cli.init_project import CreateCommand
+from happifyml.cli import project
 from happifyml.version import VERSION
 
 logger = logging.getLogger(__name__)
@@ -31,7 +31,7 @@ def get_parser() -> argparse.ArgumentParser:
 
     subparsers = parser.add_subparsers(help="HappifyML commands")
 
-    CreateCommand.register(subparsers, parents=main_parsers)
+    project.register(subparsers, parents=main_parsers)
 
 
     return parser
@@ -49,16 +49,17 @@ def main():
     arg_parser = get_parser()
     cmd = arg_parser.parse_args()
 
-
     sys.path.insert(1, os.getcwd())
 
     try:
         if hasattr(cmd, "func"):
-            service = cmd.func(cmd)
-            service.run()
+            cmd.func(cmd)
+            # service = cmd.func(cmd)
+            # service.run()
 
         elif hasattr(cmd, "version"):
             print_version()
+            
         else:
             # user has not provided a subcommand, let's print the help
             logger.error("No command specified.")

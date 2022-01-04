@@ -17,7 +17,7 @@ We use exec here so we don't import allennlp whilst setting up.
 """
 import re
 
-from setuptools import find_packages, setup
+from setuptools import setup, find_namespace_packages
 
 _dependencies = [
     "questionary",
@@ -70,5 +70,5 @@ setup(
     # extras_require=extras,
     entry_points={"console_scripts": ["happifyml=happifyml.__main__:main"]},
     install_requires=install_requires,
-    packages=find_packages(),
+    packages=find_namespace_packages(), # required for git submodules
 )
