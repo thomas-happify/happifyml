@@ -1,19 +1,25 @@
 import os
-import shutil
-import sys
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 from pathlib import Path
-from re import template
 from typing import List
 
 import questionary
 
 from happifyml.utils.cli import print_error_exit, print_success, print_success_exit
 
-from . import BaseCLICommand, SubParserAction
+from . import SubParserAction
 
 
 def register(subparsers: SubParserAction, parents: List[ArgumentParser]) -> None:
+    """
+    Examples:
+    1. create modelling repo
+    `happifyml init project`
+
+    2. create deployment repo
+    `happifyml init deployment`
+
+    """
     parser = subparsers.add_parser(
         "init",
         parents=parents,
@@ -33,9 +39,7 @@ def register(subparsers: SubParserAction, parents: List[ArgumentParser]) -> None
         help="Create training template",
     )
 
-    project_parser.add_argument(
-        "--name", type=str, default="new_project", help="Project/Model name for the new project"
-    )
+    project_parser.add_argument("name", type=str, help="Project/Model name for the new project")
 
     project_parser.set_defaults(func=init_project)
 
@@ -47,20 +51,18 @@ def register(subparsers: SubParserAction, parents: List[ArgumentParser]) -> None
         help="Create deployment template",
     )
 
-    deploy_parser.add_argument(
-        "--name", type=str, default="new_deployment", help="Project/Model name for the new deployment"
-    )
+    deploy_parser.add_argument("name", type=str, help="Project/Model name for the new deployment")
 
     deploy_parser.set_defaults(func=init_deployment)
 
 
 def init_deployment(args: Namespace) -> None:
-    path = args.name
+    path = args.name + "-deploy"
 
     if not os.path.isdir(path):
         _ask_create(path)
 
-    if os.path.exists(path):
+    elif os.path.exists(path):
         _ask_overwrite(path)
 
     print_success("Mock deployment success!")
@@ -72,7 +74,7 @@ def init_project(args: Namespace) -> None:
     if not os.path.isdir(path):
         _ask_create(path)
 
-    if os.path.exists(path):
+    elif os.path.exists(path):
         # if len(os.listdir(path)) > 0:
         _ask_overwrite(path)
 
@@ -93,7 +95,7 @@ def _ask_create(path):
 
 
 def _ask_overwrite(path):
-    overwrite = questionary.confirm("Directory '{}' is not empty. Continue?".format(os.path.abspath(path))).ask()
+    overwrite = questionary.confirm("'{}' not empty. Continue?".format(os.path.abspath(path))).ask()
 
     if not overwrite:
         print_success_exit()

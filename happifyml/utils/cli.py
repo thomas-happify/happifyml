@@ -1,5 +1,5 @@
 import sys
-from typing import Any, NoReturn, Text
+from typing import Any, Text
 
 
 class colors:

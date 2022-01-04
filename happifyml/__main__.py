@@ -5,7 +5,7 @@ import platform
 import sys
 
 # from version import VERSION
-from happifyml.cli import project
+from happifyml.cli import cloud, project
 from happifyml.version import VERSION
 
 logger = logging.getLogger(__name__)
@@ -24,23 +24,20 @@ def get_parser() -> argparse.ArgumentParser:
     )
 
     main_parser = argparse.ArgumentParser(add_help=False)
-    main_parsers = [main_parser]
 
     subparsers = parser.add_subparsers(help="HappifyML commands")
 
-    project.register(subparsers, parents=main_parsers)
+    project.register(subparsers, parents=[main_parser])
+    cloud.register(subparsers, parents=[main_parser])
 
     return parser
 
 
 def print_version() -> None:
-    """Prints version information of HappifyML and python."""
-
-    print(f"HappifyML Version :         {VERSION}")
-    # print(f"Minimum Compatible Version: {MINIMUM_COMPATIBLE_VERSION}")
-    print(f"Python Version    :         {platform.python_version()}")
-    print(f"Operating System  :         {platform.platform()}")
-    print(f"Python Path       :         {sys.executable}")
+    print(f"HappifyML Version :       {VERSION}")
+    print(f"Python Version    :       {platform.python_version()}")
+    print(f"Operating System  :       {platform.platform()}")
+    print(f"Interpreter Path  :       {sys.executable}")
 
 
 def main():
