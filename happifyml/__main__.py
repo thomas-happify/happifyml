@@ -16,7 +16,7 @@ def get_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="happifyml",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-        description="HappifyML command line interface.",
+        description="HappifyML command line interface. ",
     )
 
     parser.add_argument(
@@ -54,7 +54,6 @@ def main():
             print_version()
 
         else:
-            # user has not provided a subcommand, let's print the help
             logger.error("No command specified.")
             arg_parser.print_help()
             sys.exit(1)

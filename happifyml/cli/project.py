@@ -102,7 +102,7 @@ def _ask_overwrite(path):
 
 
 def create_project(path) -> None:
-    from distutils.dir_util import copy_tree
+    from distutils.dir_util import copy_tree, remove_tree
 
     import pkg_resources
 
@@ -110,4 +110,20 @@ def create_project(path) -> None:
     template_path = pkg_resources.resource_filename(__name__, " ")
     template_path = Path(template_path).parents[1] / "templates" / "pl_research_template"
     copy_tree(template_path, ".")
+
+    for parent, dirnames, filenames in os.walk("."):
+        for dirname in dirnames:
+            if dirname.startswith("_"):
+                remove_tree(os.path.join(parent, dirname))
+    os.remove(".git")
+
+    # # remove hidden files.
+    # files = os.listdir()
+    # for file in files:
+    #     if file.startswith((".", "_")):
+    #         try:
+    #             remove_tree(file)
+    #         except NotADirectoryError:
+    #             os.remove(file)
+
     print(f"🔥 Project created at `{path}`. Have fun coding!")
