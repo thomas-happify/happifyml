@@ -44,7 +44,7 @@ def print_error_exit(msg: Text, exit_code: int = 1) -> None:
 
 
 def print_success_exit(
-    msg: Text = "No problem. You can continue setting up by running 'happifyml create' at any time 😊",
+    msg: Text = "👌 No problem. Run 'happifyml init ' at any time to continue setup",
     exit_code: int = 0,
 ) -> None:
     print_success(msg)

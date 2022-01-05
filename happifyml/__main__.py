@@ -34,10 +34,10 @@ def get_parser() -> argparse.ArgumentParser:
 
 
 def print_version() -> None:
-    print(f"HappifyML Version :       {VERSION}")
-    print(f"Python Version    :       {platform.python_version()}")
-    print(f"Operating System  :       {platform.platform()}")
-    print(f"Interpreter Path  :       {sys.executable}")
+    print(f"HappifyML Version : {VERSION}")
+    print(f"Python Version    : {platform.python_version()}")
+    print(f"Operating System  : {platform.platform()}")
+    print(f"Interpreter Path  : {sys.executable}")
 
 
 def main():
@@ -49,8 +49,6 @@ def main():
     try:
         if hasattr(cmd, "func"):
             cmd.func(cmd)
-            # service = cmd.func(cmd)
-            # service.run()
 
         elif hasattr(cmd, "version"):
             print_version()
