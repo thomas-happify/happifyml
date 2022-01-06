@@ -33,6 +33,7 @@ def register(subparsers: SubParserAction, parents: List[ArgumentParser]) -> None
     for parser in parsers:
         parser.add_argument("training_script", type=str, help="path to the script you want to submit to the cloud")
         parser.add_argument("training_args", nargs=REMAINDER, help="Arguments of the training script.")
+        parser.add_argument("--config_file", type=str, metavar="FILE", help="path to config file")
 
         if "azure" in parser.prog:
             parser.set_defaults(func=run_azure)
@@ -42,6 +43,7 @@ def register(subparsers: SubParserAction, parents: List[ArgumentParser]) -> None
 
 def run_azure(args: Namespace) -> None:
     from azureml.core import Environment, Experiment, ScriptRunConfig, Workspace
+    from azureml.core.runconfig import MpiConfiguration
 
     cred = AzureCredentials.get()
 
@@ -52,35 +54,37 @@ def run_azure(args: Namespace) -> None:
         cred = {"subscription_id": subscription_id, "resource_group": resource_group, "workspace_name": workspace_name}
         AzureCredentials.save(cred)
 
+    # access workspace
     ws = Workspace(**cred)
+
+    print(f"Workspace: {cred['workspace_name']}")
 
     available_computes = ws.compute_targets.keys()
 
     compute_target = questionary.select("Please choose compute", choices=available_computes).ask()
 
-    print_success(f"Submitting {' '.join([args.training_script]+args.training_args)} Azure")
-    print(args.training_script)
-    print(args.training_args)
-    print(compute_target)
+    env = Environment(name="pytorch1.8")
+    env.docker.base_image = "thomasyue/happifyml:HappifyML-pytorch-1.8-cuda11-cudnn8"
+    env.python.user_managed_dependencies = True
 
-    # env = Environment(name='pytorch1.8')
-    # env.docker.base_image = "thomasyue/happifyml:HappifyML-pytorch-1.8-cuda11-cudnn8"
-    # env.python.user_managed_dependencies = True
-    # experiment = Experiment(workspace=ws, name='test_gpt_gpu')
+    # set environment variables
+    env.environment_variables["WANDB_API_KEY"] = "b3cb88ec1072ee5d4455cc074f1cd1842880f4a2"
 
-    # config = ScriptRunConfig(
-    #     source_directory='./',
-    #     script=args.training_script,
-    #     compute_target=compute_target,
-    #     environment=env,
-    #     arguments=args.training_args,
-    #     )
+    experiment = Experiment(workspace=ws, name="test_gpt_gpu")
 
-    # run = experiment.submit(config)
-    # aml_url = run.get_portal_url()
+    num_nodes = int([arg for arg in args.training_script if "node" in arg][0].split("=")[-1])
 
-    # print_success(f"Submitting {' '.join([args.training_scripts]+args.training_args)} to {aml_url}")
-    # run.wait_for_completion(show_output=True)
+    config = ScriptRunConfig(
+        source_directory="./",
+        script=args.training_script,
+        compute_target=compute_target,
+        environment=env,
+        arguments=args.training_args,
+        distributed_job_config=MpiConfiguration(node_count=num_nodes),
+    )
+
+    run = experiment.submit(config)
+    run.wait_for_completion(show_output=True)
 
 
 def run_aws(args: Namespace) -> None:
