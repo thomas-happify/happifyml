@@ -3,38 +3,54 @@ import os
 
 
 class BaseCredentials:
-    token_path = os.path.expanduser("~/.happifyml/credentials/")
-
-
-class AzureCredentials(BaseCredentials):
-    prefix = "azure_config.json"
+    credential_path = os.path.expanduser("~/.happifyml/credentials/")
 
     @classmethod
-    def save(cls, token):
-        """
-        Save token, creating folder as needed.
-        """
-        os.makedirs(os.path.dirname(cls.token_path), exist_ok=True)
-        with open(os.path.join(cls.token_path, cls.prefix), "w") as f:
-            json.dump(token, f)
+    def save(cls, credential):
+        os.makedirs(os.path.dirname(cls.credential_path), exist_ok=True)
+        with open(os.path.join(cls.credential_path), "w") as f:
+            if cls.credential_path.endswith(".json"):
+                json.dump(credential, f)
+            else:
+                f.write(credential)
 
     @classmethod
     def get(cls):
-        """
-        Get token or None if not existent.
-        """
         try:
-            with open(os.path.join(cls.token_path, cls.prefix), "r") as f:
-                return json.load(f)
+            with open(cls.credential_path, "r") as f:
+                if cls.credential_path.endswith(".json"):
+                    return json.load(f)
+                else:
+                    return f.read()
         except FileNotFoundError:
             pass
 
     @classmethod
     def delete(cls):
-        """
-        Delete token. Do not fail if token does not exist.
-        """
         try:
-            os.remove(os.path.join(cls.token_path, cls.prefix))
+            os.remove(cls.credential_path)
         except FileNotFoundError:
             pass
+
+
+class AzureCredentials(BaseCredentials):
+    credential_path = os.path.join(BaseCredentials.credential_path, "azure_config.json")
+
+
+class HfCredentials(BaseCredentials):
+    # based on https://github.com/huggingface/huggingface_hub/blob/46843f5bb34bdbe21ea22b00e86edca81bef7e80/src/huggingface_hub/hf_api.py#L1449
+    credential_path = os.path.expanduser("~/.huggingface/token")
+
+
+class WandbCredentials(BaseCredentials):
+    credential_path = os.path.join(BaseCredentials.credential_path, "wanb")
+
+
+if __name__ == "__main__":
+    cred = AzureCredentials.get()
+    print(cred)
+
+    # HfCredentials.save("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")
+    # hf_cred = HfCredentials.get()
+    # print(hf_cred)
+    # HfCredentials.delete()
