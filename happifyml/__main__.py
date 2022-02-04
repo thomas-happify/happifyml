@@ -4,8 +4,7 @@ import os
 import platform
 import sys
 
-# from version import VERSION
-from happifyml.cli import cloud, project
+from happifyml.cli import cloud, deployment, project
 from happifyml.version import VERSION
 
 logger = logging.getLogger(__name__)
@@ -29,6 +28,7 @@ def get_parser() -> argparse.ArgumentParser:
 
     project.register(subparsers, parents=[main_parser])
     cloud.register(subparsers, parents=[main_parser])
+    deployment.register(subparsers, parents=[main_parser])
 
     return parser
 

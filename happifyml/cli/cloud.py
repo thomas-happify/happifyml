@@ -33,6 +33,8 @@ def register(subparsers: SubParserAction, parents: List[ArgumentParser]) -> None
     for parser in parsers:
         parser.add_argument("training_script", type=str, help="path to the script you want to submit to the cloud")
         parser.add_argument("training_args", nargs=REMAINDER, help="Arguments of the training script.")
+        parser.add_argument("training_script", type=str, help="path to the script you want to submit to the cloud")
+        parser.add_argument("training_args", nargs=REMAINDER, help="Arguments of the training script.")
         parser.add_argument("--config_file", type=str, metavar="FILE", help="path to config file")
 
         if "azure" in parser.prog:
@@ -49,24 +51,31 @@ def run_azure(args: Namespace) -> None:
     hf_cred = HfCredentials.get()
     wandb_cred = WandbCredentials.get()
 
-    if not azure_cred:
-        subscription_id = questionary.text("subscription_id:").ask()
-        resource_group = questionary.text("resource_group:").ask()
-        workspace_name = questionary.text("workspace_name:").ask()
-        azure_cred = {
-            "subscription_id": subscription_id,
-            "resource_group": resource_group,
-            "workspace_name": workspace_name,
-        }
-        AzureCredentials.save(azure_cred)
+    try:
+        if not azure_cred:
+            print("Find Azure properties in browser here: https://portal.azure.com/")
+            subscription_id = questionary.text("subscription_id:").unsafe_ask()
+            resource_group = questionary.text("resource_group:").unsafe_ask()
+            workspace_name = questionary.text("workspace_name:").unsafe_ask()
+            azure_cred = {
+                "subscription_id": subscription_id,
+                "resource_group": resource_group,
+                "workspace_name": workspace_name,
+            }
+            AzureCredentials.save(azure_cred)
 
-    if not hf_cred:
-        hf_cred = questionary.text("Huggingface User Access Token: ").ask()
-        HfCredentials.save(hf_cred)
+        if not hf_cred:
+            print("Find HF token in browser here: https://huggingface.co/settings/token")
+            hf_cred = questionary.text("Huggingface User Access Token: ").unsafe_ask()
+            HfCredentials.save(hf_cred)
 
-    if not wandb_cred:
-        wandb_cred = questionary.text("Wandb API Key: ").ask()
-        WandbCredentials.save(hf_cred)
+        if not wandb_cred:
+            print("Find API key in browser here: https://wandb.ai/authorize")
+            wandb_cred = questionary.text("Wandb API Key: ").unsafe_ask()
+            WandbCredentials.save(wandb_cred)
+
+    except KeyboardInterrupt:
+        print_success_exit("Cancelled, Run `happifyml azure` at any time to start distributed training")
 
     # access workspace
     ws = Workspace(**azure_cred)
@@ -77,16 +86,27 @@ def run_azure(args: Namespace) -> None:
 
     compute_target = questionary.select("Please choose compute", choices=available_computes).ask()
 
-    env = Environment(name="pytorch1.8")
-    env.docker.base_image = "thomasyue/happifyml:HappifyML-pytorch-1.8-cuda11-cudnn8"
-    env.python.user_managed_dependencies = True
+    docker_name = "HappifyML-pytorch-1.8-cuda11-cudnn8"
+    try:
+        env = Environment.get(workspace=ws, name=docker_name)
+    except:
+        env = Environment(name=docker_name)
+        env.docker.base_image = f"thomasyue/happifyml:{docker_name}"
+        env.python.user_managed_dependencies = True
+        env.register(ws)
 
     # set environment variables
     env.environment_variables["WANDB_API_KEY"] = wandb_cred
-    # huggingface private keys for use_auth_token when push to hub
+
+    # huggingface private keys for use_auth_token when pushes to hub
     # https://github.com/huggingface/transformers/blob/f21bc4215aa979a5f11a4988600bc84ad96bef5f/src/transformers/file_utils.py#L2508
     # for more advance usage: https://github.com/aws/sagemaker-huggingface-inference-toolkit/blob/722edfbe255763637f69b9d14a05045e8771412b/src/sagemaker_huggingface_inference_toolkit/transformers_utils.py#L165
     env.environment_variables["HF_API_KEY"] = hf_cred
+    
+    # Azure credentials
+    env.environment_varialbes["AZURE_SUBSCRIPTION_ID"] = azure_cred["subscription_id"]
+    env.environment_varialbes["AZURE_RESOURCE_GROUP"] = azure_cred["resource_group"]
+    env.environment_varialbes["AZURE_WORKSPACE_NAME"] = azure_cred["workspace_name"]
 
     experiment = Experiment(workspace=ws, name="test_gpt_gpu")
 

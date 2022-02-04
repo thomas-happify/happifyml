@@ -43,7 +43,7 @@ class HfCredentials(BaseCredentials):
 
 
 class WandbCredentials(BaseCredentials):
-    credential_path = os.path.join(BaseCredentials.credential_path, "wanb")
+    credential_path = os.path.join(BaseCredentials.credential_path, "wandb")
 
 
 if __name__ == "__main__":

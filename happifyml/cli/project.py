@@ -27,45 +27,48 @@ def register(subparsers: SubParserAction, parents: List[ArgumentParser]) -> None
         formatter_class=ArgumentDefaultsHelpFormatter,
     )
 
-    # parser.set_defaults(func=run)
+    parser.add_argument("name", type=str, help="Project/Model name for the new project")
 
-    parsers = parser.add_subparsers()
+    parser.set_defaults(func=init_project)
 
-    project_parser = parsers.add_parser(
-        "project",
-        parents=parents,
-        conflict_handler="resolve",
-        formatter_class=ArgumentDefaultsHelpFormatter,
-        help="Create training template",
-    )
+    # parsers = parser.add_subparsers()
 
-    project_parser.add_argument("name", type=str, help="Project/Model name for the new project")
+    # project_parser = parsers.add_parser(
+    #     "project",
+    #     parents=parents,
+    #     conflict_handler="resolve",
+    #     formatter_class=ArgumentDefaultsHelpFormatter,
+    #     help="Create training template",
+    # )
 
-    project_parser.set_defaults(func=init_project)
+    # project_parser.add_argument("name", type=str, help="Project/Model name for the new project")
 
-    deploy_parser = parsers.add_parser(
-        "deployment",
-        parents=parents,
-        conflict_handler="resolve",
-        formatter_class=ArgumentDefaultsHelpFormatter,
-        help="Create deployment template",
-    )
-
-    deploy_parser.add_argument("name", type=str, help="Project/Model name for the new deployment")
-
-    deploy_parser.set_defaults(func=init_deployment)
+    # project_parser.set_defaults(func=init_project)
 
 
-def init_deployment(args: Namespace) -> None:
-    path = args.name + "-deploy"
+#     deploy_parser = parsers.add_parser(
+#         "deployment",
+#         parents=parents,
+#         conflict_handler="resolve",
+#         formatter_class=ArgumentDefaultsHelpFormatter,
+#         help="Create deployment template",
+#     )
 
-    if not os.path.isdir(path):
-        _ask_create(path)
+#     deploy_parser.add_argument("name", type=str, help="Project/Model name for the new deployment")
 
-    elif os.path.exists(path):
-        _ask_overwrite(path)
+#     deploy_parser.set_defaults(func=init_deployment)
 
-    print_success("Mock deployment success!")
+
+# def init_deployment(args: Namespace) -> None:
+#     path = args.name + "-deploy"
+
+#     if not os.path.isdir(path):
+#         _ask_create(path)
+
+#     elif os.path.exists(path):
+#         _ask_overwrite(path)
+
+#     print_success("Mock deployment success!")
 
 
 def init_project(args: Namespace) -> None:
@@ -116,14 +119,5 @@ def create_project(path) -> None:
             if dirname.startswith("_"):
                 remove_tree(os.path.join(parent, dirname))
     os.remove(".git")
-
-    # # remove hidden files.
-    # files = os.listdir()
-    # for file in files:
-    #     if file.startswith((".", "_")):
-    #         try:
-    #             remove_tree(file)
-    #         except NotADirectoryError:
-    #             os.remove(file)
 
     print(f"🔥 Project created at `{path}`. Have fun coding!")
