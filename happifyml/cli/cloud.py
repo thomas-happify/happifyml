@@ -31,10 +31,7 @@ def register(subparsers: SubParserAction, parents: List[ArgumentParser]) -> None
     parsers = [azure_parser, aws_parser]
 
     for parser in parsers:
-        parser.add_argument("training_script", type=str, help="path to the script you want to submit to the cloud")
-        parser.add_argument("training_args", nargs=REMAINDER, help="Arguments of the training script.")
-        parser.add_argument("training_script", type=str, help="path to the script you want to submit to the cloud")
-        parser.add_argument("training_args", nargs=REMAINDER, help="Arguments of the training script.")
+        parser.add_argument("training_command", nargs=REMAINDER, help="Arguments of the training script.")
         parser.add_argument("--config_file", type=str, metavar="FILE", help="path to config file")
 
         if "azure" in parser.prog:
@@ -104,21 +101,21 @@ def run_azure(args: Namespace) -> None:
     env.environment_variables["HF_API_KEY"] = hf_cred
     
     # Azure credentials
-    env.environment_varialbes["AZURE_SUBSCRIPTION_ID"] = azure_cred["subscription_id"]
-    env.environment_varialbes["AZURE_RESOURCE_GROUP"] = azure_cred["resource_group"]
-    env.environment_varialbes["AZURE_WORKSPACE_NAME"] = azure_cred["workspace_name"]
+    env.environment_variables["AZURE_SUBSCRIPTION_ID"] = azure_cred["subscription_id"]
+    env.environment_variables["AZURE_RESOURCE_GROUP"] = azure_cred["resource_group"]
+    env.environment_variables["AZURE_WORKSPACE_NAME"] = azure_cred["workspace_name"]
 
     experiment = Experiment(workspace=ws, name="test_gpt_gpu")
 
     # TODO: should extract arguments from yaml files instead of arguments which is less accurate.
-    num_nodes = int([arg for arg in args.training_args if "node" in arg][0].split("=")[-1])
+    # num_nodes = int([arg for arg in args.training_command if "node" in arg][0].split("=")[-1])
+    num_nodes = 1
 
     config = ScriptRunConfig(
         source_directory="./",
-        script=args.training_script,
+        command=args.training_command,
         compute_target=compute_target,
         environment=env,
-        arguments=args.training_args,
         distributed_job_config=PyTorchConfiguration(node_count=num_nodes),
     )
 
