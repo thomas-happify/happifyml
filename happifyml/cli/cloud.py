@@ -9,18 +9,23 @@ import questionary
 from happifyml.utils.cli import print_error_exit, print_success, print_success_exit
 
 from . import SubParserAction
-from .credentials import AzureCredentials, HfCredentials, WandbCredentials
+from ..utils.credentials import AzureCredentials, HfCredentials, WandbCredentials
+from ..integrations import azure
+from pathlib import Path
 
+current_dir = Path(os.getcwd()).name
 
 def register(subparsers: SubParserAction, parents: List[ArgumentParser]) -> None:
 
+    # Azure cloud parsers
     azure_parser = subparsers.add_parser(
         "azure",
         parents=parents,
-        help="submit argument to Azure cloud compute",
         formatter_class=ArgumentDefaultsHelpFormatter,
+        help="submit argument to Azure cloud compute",
     )
 
+    # Example AWS cloud parsers 
     aws_parser = subparsers.add_parser(
         "aws",
         parents=parents,
@@ -31,8 +36,13 @@ def register(subparsers: SubParserAction, parents: List[ArgumentParser]) -> None
     parsers = [azure_parser, aws_parser]
 
     for parser in parsers:
-        parser.add_argument("training_command", nargs=REMAINDER, help="Arguments of the training script.")
-        parser.add_argument("--config_file", type=str, metavar="FILE", help="path to config file")
+        parser.add_argument("training_command", nargs="*", help="Arguments of the training script.")
+        parser.add_argument("--register", type=str, default=False, help="run id")
+        parser.add_argument("--model-name", required='--register' in sys.argv, type=str, help="model name")
+        parser.add_argument("--model-path", required='--register' in sys.argv, type=str, help="model path in experiment")
+        parser.add_argument("--experiment", type=str, default=current_dir, help="experiment name")
+        parser.add_argument("--docker", type=str, default="HappifyML-pytorch-1.8-cuda11-cudnn8", help="docker image")
+        parser.add_argument("--nodes", type=int, default=1, help="number of nodes")
 
         if "azure" in parser.prog:
             parser.set_defaults(func=run_azure)
@@ -50,16 +60,7 @@ def run_azure(args: Namespace) -> None:
 
     try:
         if not azure_cred:
-            print("Find Azure properties in browser here: https://portal.azure.com/")
-            subscription_id = questionary.text("subscription_id:").unsafe_ask()
-            resource_group = questionary.text("resource_group:").unsafe_ask()
-            workspace_name = questionary.text("workspace_name:").unsafe_ask()
-            azure_cred = {
-                "subscription_id": subscription_id,
-                "resource_group": resource_group,
-                "workspace_name": workspace_name,
-            }
-            AzureCredentials.save(azure_cred)
+            azure_cred = azure.login()
 
         if not hf_cred:
             print("Find HF token in browser here: https://huggingface.co/settings/token")
@@ -79,48 +80,52 @@ def run_azure(args: Namespace) -> None:
 
     print(f"Workspace: {azure_cred['workspace_name']}")
 
-    available_computes = ws.compute_targets.keys()
+    # if register model
+    if args.register:
+        azure.register_model(args, ws)
 
-    compute_target = questionary.select("Please choose compute", choices=available_computes).ask()
+    elif args.training_command:
+        available_computes = ws.compute_targets.keys()
 
-    docker_name = "HappifyML-pytorch-1.8-cuda11-cudnn8"
-    try:
-        env = Environment.get(workspace=ws, name=docker_name)
-    except:
-        env = Environment(name=docker_name)
-        env.docker.base_image = f"thomasyue/happifyml:{docker_name}"
-        env.python.user_managed_dependencies = True
-        env.register(ws)
+        compute_target = questionary.select("Please choose compute", choices=available_computes).ask()
 
-    # set environment variables
-    env.environment_variables["WANDB_API_KEY"] = wandb_cred
+        try:
+            env = Environment.get(workspace=ws, name=args.docker)
+        except:
+            env = Environment(name=args.docker)
+            env.docker.base_image = f"thomasyue/happifyml:{args.docker}"
+            env.python.user_managed_dependencies = True
+            env.register(ws)
 
-    # huggingface private keys for use_auth_token when pushes to hub
-    # https://github.com/huggingface/transformers/blob/f21bc4215aa979a5f11a4988600bc84ad96bef5f/src/transformers/file_utils.py#L2508
-    # for more advance usage: https://github.com/aws/sagemaker-huggingface-inference-toolkit/blob/722edfbe255763637f69b9d14a05045e8771412b/src/sagemaker_huggingface_inference_toolkit/transformers_utils.py#L165
-    env.environment_variables["HF_API_KEY"] = hf_cred
-    
-    # Azure credentials
-    env.environment_variables["AZURE_SUBSCRIPTION_ID"] = azure_cred["subscription_id"]
-    env.environment_variables["AZURE_RESOURCE_GROUP"] = azure_cred["resource_group"]
-    env.environment_variables["AZURE_WORKSPACE_NAME"] = azure_cred["workspace_name"]
+        # set environment variables
+        env.environment_variables["WANDB_API_KEY"] = wandb_cred
 
-    experiment = Experiment(workspace=ws, name="test_gpt_gpu")
+        # huggingface private keys for use_auth_token when pushes to hub
+        # https://github.com/huggingface/transformers/blob/f21bc4215aa979a5f11a4988600bc84ad96bef5f/src/transformers/file_utils.py#L2508
+        # for more advance usage: https://github.com/aws/sagemaker-huggingface-inference-toolkit/blob/722edfbe255763637f69b9d14a05045e8771412b/src/sagemaker_huggingface_inference_toolkit/transformers_utils.py#L165
+        env.environment_variables["HF_API_KEY"] = hf_cred
+        
+        # Azure credentials
+        env.environment_variables["AZURE_SUBSCRIPTION_ID"] = azure_cred["subscription_id"]
+        env.environment_variables["AZURE_RESOURCE_GROUP"] = azure_cred["resource_group"]
+        env.environment_variables["AZURE_WORKSPACE_NAME"] = azure_cred["workspace_name"]
 
-    # TODO: should extract arguments from yaml files instead of arguments which is less accurate.
-    # num_nodes = int([arg for arg in args.training_command if "node" in arg][0].split("=")[-1])
-    num_nodes = 1
+        experiment = Experiment(workspace=ws, name=args.experiment)
 
-    config = ScriptRunConfig(
-        source_directory="./",
-        command=args.training_command,
-        compute_target=compute_target,
-        environment=env,
-        distributed_job_config=PyTorchConfiguration(node_count=num_nodes),
-    )
+        # TODO: should extract arguments from yaml files instead of arguments which is less accurate.
+        # num_nodes = int([arg for arg in args.training_command if "node" in arg][0].split("=")[-1])
+        num_nodes = args.nodes
 
-    run = experiment.submit(config)
-    run.wait_for_completion(show_output=True)
+        config = ScriptRunConfig(
+            source_directory="./",
+            command=args.training_command,
+            compute_target=compute_target,
+            environment=env,
+            distributed_job_config=PyTorchConfiguration(node_count=num_nodes),
+        )
+
+        run = experiment.submit(config)
+        run.wait_for_completion(show_output=True)
 
 
 def run_aws(args: Namespace) -> None:
