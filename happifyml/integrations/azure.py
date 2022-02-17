@@ -1,20 +1,28 @@
-from multiprocessing.sharedctypes import Value
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
 import os
+from argparse import REMAINDER, ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
+from multiprocessing.sharedctypes import Value
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
+
 import torch
+
+import questionary
 from azureml.core import Workspace
 from azureml.core.model import Model
-from pathlib import Path
-from ..utils.credentials import AzureCredentials
-from argparse import REMAINDER, ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
-import questionary
 
+from ..utils.credentials import AzureCredentials
 
 
 class AzureMixin:
-
     @classmethod
-    def from_pretrained(cls, pretrained_model_name_or_path: str, workspace: Optional[str]=None, revision: Optional[Union[str,int]]=None, *model_args, **kwargs):
+    def from_pretrained(
+        cls,
+        pretrained_model_name_or_path: str,
+        workspace: Optional[str] = None,
+        revision: Optional[Union[str, int]] = None,
+        *model_args,
+        **kwargs,
+    ):
         """
         Download and initialize model from azure ml studio
         """
@@ -32,7 +40,6 @@ class AzureMixin:
                     break
 
         return super(AzureMixin, cls).from_pretrained(pretrained_model_name_or_path, *model_args, **kwargs)
-
 
     def save_pretrained(
         self,
@@ -69,20 +76,21 @@ class AzureMixin:
 
 
 class AzureML:
-
-    def __init__(self, output_dir:Optional[str]=None, subscription_id=None,resource_group=None,workspace_name=None):
-        self.workspace = self.get_workspace(subscription_id,resource_group,workspace_name)
+    def __init__(
+        self, output_dir: Optional[str] = None, subscription_id=None, resource_group=None, workspace_name=None
+    ):
+        self.workspace = self.get_workspace(subscription_id, resource_group, workspace_name)
         self.output_dir = output_dir
 
     @staticmethod
-    def get_workspace(subscription_id=None,resource_group=None,workspace_name=None):
+    def get_workspace(subscription_id=None, resource_group=None, workspace_name=None):
 
-        azure_cred = AzureML.login(subscription_id,resource_group,workspace_name)
+        azure_cred = AzureML.login(subscription_id, resource_group, workspace_name)
 
         return Workspace(**azure_cred)
 
     @staticmethod
-    def login(subscription_id=None,resource_group=None,workspace_name=None):
+    def login(subscription_id=None, resource_group=None, workspace_name=None):
 
         azure_cred = AzureCredentials.get()
         if not azure_cred:
@@ -107,20 +115,24 @@ class AzureML:
 
             # save correct credentials
             AzureCredentials.save(azure_cred)
-        
+
         return azure_cred
 
-    def relogin(subscription_id=None,resource_group=None,workspace_name=None):
+    def relogin(subscription_id=None, resource_group=None, workspace_name=None):
         AzureCredentials.delete()
 
-        return AzureML.login()
+        return AzureML.login(subscription_id, resource_group, workspace_name)
 
-    def push_to_azure(self, run_id: Optional[str]=None, output_dir: Optional[str]=None, model_name: Optional[str]=None):
+    def push_to_azure(
+        self, run_id: Optional[str] = None, output_dir: Optional[str] = None, model_name: Optional[str] = None
+    ):
         from azureml.core.run import Run
 
         if not output_dir and not self.output_dir:
-            raise ValueError("output_dir is missing, please specify output_dir by calling `AzureML(output_dir)` or `AzureML.push(run_id, output_dir)`")
-            
+            raise ValueError(
+                "output_dir is missing, please specify output_dir by calling `AzureML(output_dir)` or `AzureML.push(run_id, output_dir)`"
+            )
+
         else:
             output_dir = self.output_dir if self.output_dir else output_dir
 
@@ -138,12 +150,11 @@ class AzureML:
         model = run.register_model(model_name=model_name, model_path=output_dir)
         print(model)
 
-
     def list_models(self):
         model_dict = self.workspace.models
         for model in model_dict:
             print(model_dict[model].id)
-    
+
 
 # def login() -> None:
 #     print("Find Azure properties in browser here: https://portal.azure.com/")
@@ -160,7 +171,7 @@ class AzureML:
 
 # def get_workspace():
 #     azure_cred = AzureCredentials.get()
-    
+
 #     if not azure_cred:
 #         azure_cred = login()
 
@@ -170,11 +181,13 @@ class AzureML:
 #     AzureCredentials.delete()
 #     return login()
 
+
 def register_model(args: Namespace, ws: Workspace) -> None:
     run = ws.get_run(args.register)
     print(f"Registering {args.model_name}")
     model = run.register_model(model_name=args.model_name, model_path=args.model_path)
     print(model)
+
 
 def submit_training(args: Namespace, ws: Workspace) -> None:
     # TODO(Thomas) to move training from cloud.py to here.

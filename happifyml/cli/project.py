@@ -4,7 +4,6 @@ from pathlib import Path
 from typing import List
 
 import questionary
-
 from happifyml.utils.cli import print_error_exit, print_success, print_success_exit
 
 from . import SubParserAction

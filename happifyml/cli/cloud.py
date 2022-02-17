@@ -5,15 +5,15 @@ from pathlib import Path
 from typing import List
 
 import questionary
-
 from happifyml.utils.cli import print_error_exit, print_success, print_success_exit
 
-from . import SubParserAction
-from ..utils.credentials import AzureCredentials, HfCredentials, WandbCredentials
 from ..integrations import azure
-from pathlib import Path
+from ..utils.credentials import AzureCredentials, HfCredentials, WandbCredentials
+from . import SubParserAction
 
+file_suffix = (".py", ".sh")
 current_dir = Path(os.getcwd()).name
+
 
 def register(subparsers: SubParserAction, parents: List[ArgumentParser]) -> None:
 
@@ -25,7 +25,7 @@ def register(subparsers: SubParserAction, parents: List[ArgumentParser]) -> None
         help="submit argument to Azure cloud compute",
     )
 
-    # Example AWS cloud parsers 
+    # Example AWS cloud parsers
     aws_parser = subparsers.add_parser(
         "aws",
         parents=parents,
@@ -38,11 +38,24 @@ def register(subparsers: SubParserAction, parents: List[ArgumentParser]) -> None
     for parser in parsers:
         parser.add_argument("training_command", nargs="*", help="Arguments of the training script.")
         parser.add_argument("--register", type=str, default=False, help="run id")
-        parser.add_argument("--model-name", required='--register' in sys.argv, type=str, help="model name")
-        parser.add_argument("--model-path", required='--register' in sys.argv, type=str, help="model path in experiment")
+        parser.add_argument("--model-name", required="--register" in sys.argv, type=str, help="model name")
+        parser.add_argument(
+            "--model-path", required="--register" in sys.argv, type=str, help="model path in experiment"
+        )
         parser.add_argument("--experiment", type=str, default=current_dir, help="experiment name")
-        parser.add_argument("--docker", type=str, default="HappifyML-pytorch-1.8-cuda11-cudnn8", help="docker image")
-        parser.add_argument("--nodes", type=int, default=1, help="number of nodes")
+        parser.add_argument(
+            "--base-docker",
+            type=str,
+            default="mcr.microsoft.com/azureml/openmpi4.1.0-cuda11.1-cudnn8-ubuntu18.04",
+            help="base docker image",
+        )
+        parser.add_argument(
+            "--docker",
+            type=str,
+            default="thomasyue/happifyml:HappifyML-pytorch-1.8-cuda11-cudnn8",
+            help="docker image",
+        )
+        parser.add_argument("--nodes", type=int, default=None, help="number of nodes")
 
         if "azure" in parser.prog:
             parser.set_defaults(func=run_azure)
@@ -52,7 +65,24 @@ def register(subparsers: SubParserAction, parents: List[ArgumentParser]) -> None
 
 def run_azure(args: Namespace) -> None:
     from azureml.core import Environment, Experiment, ScriptRunConfig, Workspace
-    from azureml.core.runconfig import PyTorchConfiguration
+    from azureml.core.runconfig import DockerConfiguration, MpiConfiguration, PyTorchConfiguration
+
+    # simple sanity check if training_command file exists
+    for item in args.training_command:
+        if item.endswith(file_suffix):
+            if not os.path.exists(item):
+                print_error_exit(f"{item} not found.")
+
+    # simple parse args and look for "args.nodes", if unavailable, prompt to ask for nodes
+    for i, item in enumerate(args.training_command):
+        if "nodes" in item:
+            if "=" in item:
+                args.nodes = item.split("=", 1)[-1]
+            else:
+                args.nodes = args.training_command[i + 1]
+
+    if not args.nodes:
+        args.nodes = questionary.text("Number of nodes not found, please enter number of nodes").unsafe_ask()
 
     azure_cred = AzureCredentials.get()
     hf_cred = HfCredentials.get()
@@ -78,50 +108,45 @@ def run_azure(args: Namespace) -> None:
     # access workspace
     ws = Workspace(**azure_cred)
 
-    print(f"Workspace: {azure_cred['workspace_name']}")
+    print(f"Current Workspace: {azure_cred['workspace_name']}")
 
     # if register model
     if args.register:
         azure.register_model(args, ws)
 
     elif args.training_command:
+        print(args.training_command)
         available_computes = ws.compute_targets.keys()
 
         compute_target = questionary.select("Please choose compute", choices=available_computes).ask()
 
-        try:
-            env = Environment.get(workspace=ws, name=args.docker)
-        except:
-            env = Environment(name=args.docker)
-            env.docker.base_image = f"thomasyue/happifyml:{args.docker}"
-            env.python.user_managed_dependencies = True
-            env.register(ws)
+        # TODO(Thoams) parse environment for:
+        # 1. pytorch version
+        # 2. base_docker cuda, cudnn version
+        env = Environment.from_conda_specification(args.experiment, "environment.yaml")
+        env.docker.base_image = args.base_docker
+        env.register(ws)
+        docker_config = DockerConfiguration(use_docker=True)
 
         # set environment variables
         env.environment_variables["WANDB_API_KEY"] = wandb_cred
-
-        # huggingface private keys for use_auth_token when pushes to hub
-        # https://github.com/huggingface/transformers/blob/f21bc4215aa979a5f11a4988600bc84ad96bef5f/src/transformers/file_utils.py#L2508
-        # for more advance usage: https://github.com/aws/sagemaker-huggingface-inference-toolkit/blob/722edfbe255763637f69b9d14a05045e8771412b/src/sagemaker_huggingface_inference_toolkit/transformers_utils.py#L165
         env.environment_variables["HF_API_KEY"] = hf_cred
-        
-        # Azure credentials
         env.environment_variables["AZURE_SUBSCRIPTION_ID"] = azure_cred["subscription_id"]
         env.environment_variables["AZURE_RESOURCE_GROUP"] = azure_cred["resource_group"]
         env.environment_variables["AZURE_WORKSPACE_NAME"] = azure_cred["workspace_name"]
 
         experiment = Experiment(workspace=ws, name=args.experiment)
 
-        # TODO: should extract arguments from yaml files instead of arguments which is less accurate.
-        # num_nodes = int([arg for arg in args.training_command if "node" in arg][0].split("=")[-1])
-        num_nodes = args.nodes
+        # TODO(Thomas) to include `export` to training_command for multi-node training environmental variables.
 
+        # training_command = + training_command
         config = ScriptRunConfig(
             source_directory="./",
             command=args.training_command,
             compute_target=compute_target,
             environment=env,
-            distributed_job_config=PyTorchConfiguration(node_count=num_nodes),
+            distributed_job_config=MpiConfiguration(node_count=args.nodes) if args.nodes > 1 else None,
+            docker_runtime_config=docker_config,
         )
 
         run = experiment.submit(config)
