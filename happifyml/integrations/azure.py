@@ -10,7 +10,7 @@ import questionary
 from azureml.core import Workspace
 from azureml.core.model import Model
 
-from ..utils.credentials import AzureCredentials
+from ..utils.credentials import AzureCredentials, HfCredentials, WandbCredentials
 
 
 class AzureMixin:
@@ -75,19 +75,11 @@ class AzureMixin:
         Model.register(workspace=workspace, model_path=model_path, model_name=model_name, **kwargs)
 
 
+# TODO(Thomas) to add typing and comments
 class AzureML:
-    def __init__(
-        self, output_dir: Optional[str] = None, subscription_id=None, resource_group=None, workspace_name=None
-    ):
-        self.workspace = self.get_workspace(subscription_id, resource_group, workspace_name)
-        self.output_dir = output_dir
-
-    @staticmethod
-    def get_workspace(subscription_id=None, resource_group=None, workspace_name=None):
-
-        azure_cred = AzureML.login(subscription_id, resource_group, workspace_name)
-
-        return Workspace(**azure_cred)
+    def __init__(self, subscription_id=None, resource_group=None, workspace_name=None):
+        self.azure_cred = AzureML.login(subscription_id, resource_group, workspace_name)
+        self.workspace = Workspace(**self.azure_cred)
 
     @staticmethod
     def login(subscription_id=None, resource_group=None, workspace_name=None):
@@ -100,6 +92,7 @@ class AzureML:
                 resource_group = questionary.text("resource_group:").unsafe_ask()
                 workspace_name = questionary.text("workspace_name:").unsafe_ask()
 
+            # if using in Jupyter
             except RuntimeError:
                 subscription_id = input("subscription_id:")
                 resource_group = input("resource_group:")
@@ -110,7 +103,9 @@ class AzureML:
                 "resource_group": resource_group,
                 "workspace_name": workspace_name,
             }
+
             # test if credentials are correct
+            # TODO(Thomas) to find better approach to check if credentials can successfully login
             Workspace(**azure_cred)
 
             # save correct credentials
@@ -118,23 +113,14 @@ class AzureML:
 
         return azure_cred
 
+    @staticmethod
     def relogin(subscription_id=None, resource_group=None, workspace_name=None):
         AzureCredentials.delete()
 
         return AzureML.login(subscription_id, resource_group, workspace_name)
 
-    def push_to_azure(
-        self, run_id: Optional[str] = None, output_dir: Optional[str] = None, model_name: Optional[str] = None
-    ):
+    def push(self, run_id: Optional[str] = None, output_dir: Optional[str] = None, model_name: Optional[str] = None):
         from azureml.core.run import Run
-
-        if not output_dir and not self.output_dir:
-            raise ValueError(
-                "output_dir is missing, please specify output_dir by calling `AzureML(output_dir)` or `AzureML.push(run_id, output_dir)`"
-            )
-
-        else:
-            output_dir = self.output_dir if self.output_dir else output_dir
 
         if not model_name:
             model_name = Path(output_dir).name
@@ -155,40 +141,51 @@ class AzureML:
         for model in model_dict:
             print(model_dict[model].id)
 
+    def register_model(self, run_id, model_name, model_remote_path) -> None:
+        run = self.workspace.get_run(run_id)
+        print(f"Registering {model_name}")
+        model = run.register_model(model_name=model_name, model_path=model_remote_path)
+        print(model)
 
-# def login() -> None:
-#     print("Find Azure properties in browser here: https://portal.azure.com/")
-#     subscription_id = questionary.text("subscription_id:").unsafe_ask()
-#     resource_group = questionary.text("resource_group:").unsafe_ask()
-#     workspace_name = questionary.text("workspace_name:").unsafe_ask()
-#     azure_cred = {
-#         "subscription_id": subscription_id,
-#         "resource_group": resource_group,
-#         "workspace_name": workspace_name,
-#     }
-#     AzureCredentials.save(azure_cred)
-#     return azure_cred
+    def submit_training(self, command, experiment_name, base_docker, num_nodes, **kwargs) -> None:
+        from azureml.core import Environment, Experiment, ScriptRunConfig
+        from azureml.core.runconfig import DockerConfiguration, MpiConfiguration
 
-# def get_workspace():
-#     azure_cred = AzureCredentials.get()
+        available_computes = self.workspace.compute_targets.keys()
 
-#     if not azure_cred:
-#         azure_cred = login()
+        compute_target = questionary.select("Please choose compute", choices=available_computes).ask()
 
-#     return Workspace(**azure_cred)
+        # TODO(Thoams) parse environment for:
+        # 1. pytorch version
+        # 2. base_docker cuda, cudnn version
+        env = Environment.from_conda_specification(experiment_name, "environment.yaml")
+        env.docker.base_image = base_docker
+        env.register(self.workspace)
+        docker_config = DockerConfiguration(use_docker=True)
 
-# def relogin() -> None:
-#     AzureCredentials.delete()
-#     return login()
+        # set environment variables
+        env.environment_variables["AZURE_SUBSCRIPTION_ID"] = self.azure_cred["subscription_id"]
+        env.environment_variables["AZURE_RESOURCE_GROUP"] = self.azure_cred["resource_group"]
+        env.environment_variables["AZURE_WORKSPACE_NAME"] = self.azure_cred["workspace_name"]
+        env.environment_variables["WANDB_API_KEY"] = kwargs.get("hf_cred")
+        env.environment_variables["HF_API_KEY"] = kwargs.get("hf_cred")
 
+        experiment = Experiment(workspace=self.workspace, name=experiment_name)
 
-def register_model(args: Namespace, ws: Workspace) -> None:
-    run = ws.get_run(args.register)
-    print(f"Registering {args.model_name}")
-    model = run.register_model(model_name=args.model_name, model_path=args.model_path)
-    print(model)
+        # TODO(Thomas) to include `export` to command for multi-node training environmental variables.
+        # command = + command
+        config = ScriptRunConfig(
+            source_directory=".",
+            command=command,
+            compute_target=compute_target,
+            environment=env,
+            distributed_job_config=MpiConfiguration(node_count=num_nodes) if num_nodes > 1 else None,
+            docker_runtime_config=docker_config,
+        )
 
+        run = experiment.submit(config)
+        run.wait_for_completion(show_output=True)
 
-def submit_training(args: Namespace, ws: Workspace) -> None:
-    # TODO(Thomas) to move training from cloud.py to here.
-    pass
+    @staticmethod
+    def set_multinode_environment():
+        pass

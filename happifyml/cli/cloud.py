@@ -7,7 +7,8 @@ from typing import List
 import questionary
 from happifyml.utils.cli import print_error_exit, print_success, print_success_exit
 
-from ..integrations import azure
+# from ..integrations import azure
+from ..integrations.azure import AzureML
 from ..utils.credentials import AzureCredentials, HfCredentials, WandbCredentials
 from . import SubParserAction
 
@@ -56,6 +57,8 @@ def register(subparsers: SubParserAction, parents: List[ArgumentParser]) -> None
             help="docker image",
         )
         parser.add_argument("--nodes", type=int, default=None, help="number of nodes")
+        parser.add_argument("--relogin", action="store_true", help="relogin to Azure with different workspace")
+        parser.add_argument("--set-env", action="store_true", help="set multi node training environment")
 
         if "azure" in parser.prog:
             parser.set_defaults(func=run_azure)
@@ -73,24 +76,21 @@ def run_azure(args: Namespace) -> None:
             if not os.path.exists(item):
                 print_error_exit(f"{item} not found.")
 
-    # simple parse args and look for "args.nodes", if unavailable, prompt to ask for nodes
-    for i, item in enumerate(args.training_command):
-        if "nodes" in item:
-            if "=" in item:
-                args.nodes = item.split("=", 1)[-1]
-            else:
-                args.nodes = args.training_command[i + 1]
+    if args.relogin:
+        AzureML.relogin()
 
-    if not args.nodes:
-        args.nodes = questionary.text("Number of nodes not found, please enter number of nodes").unsafe_ask()
+    aml = AzureML()
 
-    azure_cred = AzureCredentials.get()
+    if args.set_env:
+        AzureML.set_multinode_environment()
+
+    # azure_cred = AzureCredentials.get()
     hf_cred = HfCredentials.get()
     wandb_cred = WandbCredentials.get()
 
     try:
-        if not azure_cred:
-            azure_cred = azure.login()
+        # if not azure_cred:
+        #     azure_cred = AzureML.login()
 
         if not hf_cred:
             print("Find HF token in browser here: https://huggingface.co/settings/token")
@@ -105,52 +105,32 @@ def run_azure(args: Namespace) -> None:
     except KeyboardInterrupt:
         print_success_exit("Cancelled, Run `happifyml azure` at any time to start distributed training")
 
-    # access workspace
-    ws = Workspace(**azure_cred)
-
-    print(f"Current Workspace: {azure_cred['workspace_name']}")
-
     # if register model
     if args.register:
-        azure.register_model(args, ws)
+        aml.register_model(run_id=args.register, model_name=args.model_name, model_remote_path=args.model_path)
 
     elif args.training_command:
-        print(args.training_command)
-        available_computes = ws.compute_targets.keys()
+        print(f"Current Workspace: {aml.azure_cred['workspace_name']}")
 
-        compute_target = questionary.select("Please choose compute", choices=available_computes).ask()
+        # simple parse args and look for "nodes", if unavailable, prompt to ask for nodes
+        for i, item in enumerate(args.training_command):
+            if "nodes" in item:
+                if "=" in item:
+                    args.nodes = item.split("=", 1)[-1]
+                else:
+                    args.nodes = args.training_command[i + 1]
 
-        # TODO(Thoams) parse environment for:
-        # 1. pytorch version
-        # 2. base_docker cuda, cudnn version
-        env = Environment.from_conda_specification(args.experiment, "environment.yaml")
-        env.docker.base_image = args.base_docker
-        env.register(ws)
-        docker_config = DockerConfiguration(use_docker=True)
+        if not args.nodes:
+            args.nodes = questionary.text("Number of nodes not found, please enter number of nodes").unsafe_ask()
 
-        # set environment variables
-        env.environment_variables["WANDB_API_KEY"] = wandb_cred
-        env.environment_variables["HF_API_KEY"] = hf_cred
-        env.environment_variables["AZURE_SUBSCRIPTION_ID"] = azure_cred["subscription_id"]
-        env.environment_variables["AZURE_RESOURCE_GROUP"] = azure_cred["resource_group"]
-        env.environment_variables["AZURE_WORKSPACE_NAME"] = azure_cred["workspace_name"]
-
-        experiment = Experiment(workspace=ws, name=args.experiment)
-
-        # TODO(Thomas) to include `export` to training_command for multi-node training environmental variables.
-
-        # training_command = + training_command
-        config = ScriptRunConfig(
-            source_directory="./",
+        aml.submit_training(
             command=args.training_command,
-            compute_target=compute_target,
-            environment=env,
-            distributed_job_config=MpiConfiguration(node_count=args.nodes) if args.nodes > 1 else None,
-            docker_runtime_config=docker_config,
+            experiment_name=args.experiment,
+            base_docker=args.base_docker,
+            num_nodes=int(args.nodes),
+            hf_cred=hf_cred,
+            wandb_cred=wandb_cred,
         )
-
-        run = experiment.submit(config)
-        run.wait_for_completion(show_output=True)
 
 
 def run_aws(args: Namespace) -> None:
