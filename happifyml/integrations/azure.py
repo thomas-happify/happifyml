@@ -66,7 +66,7 @@ class AzureMixin:
         super().save_pretrained(save_directory, save_config, state_dict, save_function, push_to_hub, **kwargs)
 
         if push_to_azure:
-            self.push_to_azure(save_directory, workspace)
+            AzureMixin.push_to_azure(save_directory, workspace)
 
     @staticmethod
     def push_to_azure(model_path, workspace, **kwargs):
