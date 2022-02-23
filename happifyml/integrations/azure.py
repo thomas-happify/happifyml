@@ -1,5 +1,4 @@
 import os
-from argparse import REMAINDER, ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 from multiprocessing.sharedctypes import Value
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
@@ -10,7 +9,7 @@ import questionary
 from azureml.core import Workspace
 from azureml.core.model import Model
 
-from ..utils.credentials import AzureCredentials, HfCredentials, WandbCredentials
+from ..utils.credentials import AzureCredentials
 
 
 class AzureMixin:
@@ -78,8 +77,8 @@ class AzureMixin:
 # TODO(Thomas) to add typing and comments
 class AzureML:
     def __init__(self, subscription_id=None, resource_group=None, workspace_name=None):
-        self.azure_cred = AzureML.login(subscription_id, resource_group, workspace_name)
-        self.workspace = Workspace(**self.azure_cred)
+        self.credentials = AzureML.login(subscription_id, resource_group, workspace_name)
+        self.workspace = Workspace(**self.credentials)
 
     @staticmethod
     def login(subscription_id=None, resource_group=None, workspace_name=None):
@@ -105,7 +104,7 @@ class AzureML:
             }
 
             # test if credentials are correct
-            # TODO(Thomas) to find better approach to check if credentials can successfully login
+            # TODO(Thomas) to find better approach to test if credentials can successfully login
             Workspace(**azure_cred)
 
             # save correct credentials
@@ -115,58 +114,71 @@ class AzureML:
 
     @staticmethod
     def relogin(subscription_id=None, resource_group=None, workspace_name=None):
+        # delete existing Azure credentials
         AzureCredentials.delete()
-
         return AzureML.login(subscription_id, resource_group, workspace_name)
 
-    def push(self, run_id: Optional[str] = None, output_dir: Optional[str] = None, model_name: Optional[str] = None):
+    @staticmethod
+    def push(workspace: Optional[Workspace]=None, run_id: Optional[str]=None, model_remote_path: Optional[str]=None, model_name: Optional[str]=None):
         from azureml.core.run import Run
 
+        # if model_name not available, we use model folder name by default
         if not model_name:
-            model_name = Path(output_dir).name
+            model_name = Path(model_remote_path).name
 
+        # if no run_id specified, try to get the current run.
         if not run_id:
-            # if no run_id specified, try the current run.
             run = Run.get_context()
-            run_id = run.id
+        else:
+            run = workspace.get_run(run_id)
 
-        run = self.workspace.get_run(run_id)
         details = run.get_details()
         print(f"Registering model from run: {run.id}, completed on (UTC): {details['endTimeUtc']}")
-        model = run.register_model(model_name=model_name, model_path=output_dir)
+        model = run.register_model(model_name=model_name, model_path=model_remote_path)
         print(model)
+
+    # def register_model(self, run_id, model_name, model_remote_path) -> None:
+    #     run = self.workspace.get_run(run_id)
+    #     print(f"Registering {model_name}")
+    #     model = run.register_model(model_name=model_name, model_path=model_remote_path)
+    #     print(model)
 
     def list_models(self):
         model_dict = self.workspace.models
         for model in model_dict:
             print(model_dict[model].id)
 
-    def register_model(self, run_id, model_name, model_remote_path) -> None:
-        run = self.workspace.get_run(run_id)
-        print(f"Registering {model_name}")
-        model = run.register_model(model_name=model_name, model_path=model_remote_path)
-        print(model)
-
-    def submit_training(self, command, experiment_name, base_docker, num_nodes, **kwargs) -> None:
+    def submit_training(self, command, experiment_name, docker_name, num_nodes, compute_target=None, **kwargs) -> None:
         from azureml.core import Environment, Experiment, ScriptRunConfig
         from azureml.core.runconfig import DockerConfiguration, MpiConfiguration
 
-        available_computes = self.workspace.compute_targets.keys()
-
-        compute_target = questionary.select("Please choose compute", choices=available_computes).ask()
+        if not compute_target:
+            available_computes = self.workspace.compute_targets.keys()
+            compute_target = questionary.select("Please choose compute", choices=available_computes).ask()
 
         # TODO(Thoams) parse environment for:
         # 1. pytorch version
         # 2. base_docker cuda, cudnn version
-        env = Environment.from_conda_specification(experiment_name, "environment.yaml")
-        env.docker.base_image = base_docker
-        env.register(self.workspace)
-        docker_config = DockerConfiguration(use_docker=True)
+        # env = Environment.from_conda_specification(experiment_name, "environment.yaml")
+        # env.docker.base_image = base_docker
+        # env.register(self.workspace)
+        # docker_config = DockerConfiguration(use_docker=True)
+
+        try:
+            env = Environment.get(workspace=self.workspace, name=docker_name)
+        except:
+            env = Environment(name=docker_name)
+            env.docker.base_image = f"thomasyue/happifyml:{docker_name}"
+            env.python.user_managed_dependencies = True
+            env.register(self.workspace)
+
 
         # set environment variables
-        env.environment_variables["AZURE_SUBSCRIPTION_ID"] = self.azure_cred["subscription_id"]
-        env.environment_variables["AZURE_RESOURCE_GROUP"] = self.azure_cred["resource_group"]
-        env.environment_variables["AZURE_WORKSPACE_NAME"] = self.azure_cred["workspace_name"]
+        env.environment_variables["AZURE_SUBSCRIPTION_ID"] = self.credentials["subscription_id"]
+        env.environment_variables["AZURE_RESOURCE_GROUP"] = self.credentials["resource_group"]
+        env.environment_variables["AZURE_WORKSPACE_NAME"] = self.credentials["workspace_name"]
+
+        # TODO(Thomas) handel exception if kwargs not provided
         env.environment_variables["WANDB_API_KEY"] = kwargs.get("hf_cred")
         env.environment_variables["HF_API_KEY"] = kwargs.get("hf_cred")
 

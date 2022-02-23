@@ -1,6 +1,6 @@
 import os
 import sys
-from argparse import REMAINDER, ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
+from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace, REMAINDER
 from pathlib import Path
 from typing import List
 
@@ -15,7 +15,6 @@ from . import SubParserAction
 file_suffix = (".py", ".sh")
 current_dir = Path(os.getcwd()).name
 
-
 def register(subparsers: SubParserAction, parents: List[ArgumentParser]) -> None:
 
     # Azure cloud parsers
@@ -26,7 +25,7 @@ def register(subparsers: SubParserAction, parents: List[ArgumentParser]) -> None
         help="submit argument to Azure cloud compute",
     )
 
-    # Example AWS cloud parsers
+    # Placeholder as an example for AWS cloud parsers
     aws_parser = subparsers.add_parser(
         "aws",
         parents=parents,
@@ -37,7 +36,7 @@ def register(subparsers: SubParserAction, parents: List[ArgumentParser]) -> None
     parsers = [azure_parser, aws_parser]
 
     for parser in parsers:
-        parser.add_argument("training_command", nargs="*", help="Arguments of the training script.")
+        parser.add_argument("training_command", nargs="*", help="training commands you will use on local machine.")
         parser.add_argument("--register", type=str, default=False, help="run id")
         parser.add_argument("--model-name", required="--register" in sys.argv, type=str, help="model name")
         parser.add_argument(
@@ -58,7 +57,7 @@ def register(subparsers: SubParserAction, parents: List[ArgumentParser]) -> None
         )
         parser.add_argument("--nodes", type=int, default=None, help="number of nodes")
         parser.add_argument("--relogin", action="store_true", help="relogin to Azure with different workspace")
-        parser.add_argument("--set-env", action="store_true", help="set multi node training environment")
+        parser.add_argument("--compute-name", type=str, default=False, help="compute target name")
 
         if "azure" in parser.prog:
             parser.set_defaults(func=run_azure)
@@ -67,8 +66,14 @@ def register(subparsers: SubParserAction, parents: List[ArgumentParser]) -> None
 
 
 def run_azure(args: Namespace) -> None:
-    from azureml.core import Environment, Experiment, ScriptRunConfig, Workspace
-    from azureml.core.runconfig import DockerConfiguration, MpiConfiguration, PyTorchConfiguration
+    # work around solve training_command ambigiouty like "&&".
+    # EX: `happifyml azure "bash script.sh && python script.py"``
+    # If you do `happifyml azure bash script.sh && python script.py`, it's actually `happifyml azure bash script.sh` and `python script.py` 
+    if args.relogin:
+        AzureML.relogin()
+
+    if len(args.training_command) == 1:
+        args.training_command = args.training_command[0].split()
 
     # simple sanity check if training_command file exists
     for item in args.training_command:
@@ -76,62 +81,51 @@ def run_azure(args: Namespace) -> None:
             if not os.path.exists(item):
                 print_error_exit(f"{item} not found.")
 
-    if args.relogin:
-        AzureML.relogin()
-
+    # initialize aml and get credentials
     aml = AzureML()
-
-    if args.set_env:
-        AzureML.set_multinode_environment()
-
-    # azure_cred = AzureCredentials.get()
     hf_cred = HfCredentials.get()
     wandb_cred = WandbCredentials.get()
 
-    try:
-        # if not azure_cred:
-        #     azure_cred = AzureML.login()
+    if not hf_cred:
+        print("Find HF token in browser here: https://huggingface.co/settings/token")
+        hf_cred = questionary.text("Huggingface User Access Token: ").unsafe_ask()
+        HfCredentials.save(hf_cred)
 
-        if not hf_cred:
-            print("Find HF token in browser here: https://huggingface.co/settings/token")
-            hf_cred = questionary.text("Huggingface User Access Token: ").unsafe_ask()
-            HfCredentials.save(hf_cred)
+    if not wandb_cred:
+        print("Find API key in browser here: https://wandb.ai/authorize")
+        wandb_cred = questionary.text("Wandb API Key: ").unsafe_ask()
+        WandbCredentials.save(wandb_cred)
 
-        if not wandb_cred:
-            print("Find API key in browser here: https://wandb.ai/authorize")
-            wandb_cred = questionary.text("Wandb API Key: ").unsafe_ask()
-            WandbCredentials.save(wandb_cred)
-
-    except KeyboardInterrupt:
-        print_success_exit("Cancelled, Run `happifyml azure` at any time to start distributed training")
-
-    # if register model
     if args.register:
         aml.register_model(run_id=args.register, model_name=args.model_name, model_remote_path=args.model_path)
 
     elif args.training_command:
-        print(f"Current Workspace: {aml.azure_cred['workspace_name']}")
+        print(f"Current Workspace: {aml.credentials['workspace_name']}")
 
-        # simple parse args and look for "nodes", if unavailable, prompt to ask for nodes
-        for i, item in enumerate(args.training_command):
-            if "nodes" in item:
-                if "=" in item:
-                    args.nodes = item.split("=", 1)[-1]
-                else:
-                    args.nodes = args.training_command[i + 1]
+        #if args.nodes not specified, we simply look for "nodes" if it's in training_command.
+        if not args.nodes:
+            for i, item in enumerate(args.training_command):
+                if "nodes" in item:
+                    if "=" in item:
+                        args.nodes = item.split("=", 1)[-1]
+                    else:
+                        # if "--nodes 2", nodes is the next index
+                        args.nodes = args.training_command[i+1]
 
+        # if still didn't find it, we prompt to ask
         if not args.nodes:
             args.nodes = questionary.text("Number of nodes not found, please enter number of nodes").unsafe_ask()
 
         aml.submit_training(
             command=args.training_command,
             experiment_name=args.experiment,
-            base_docker=args.base_docker,
+            # base_docker=args.base_docker,
+            docker_name=args.docker,
             num_nodes=int(args.nodes),
+            compute_target=args.compute_target,
             hf_cred=hf_cred,
             wandb_cred=wandb_cred,
         )
-
 
 def run_aws(args: Namespace) -> None:
     raise NotImplementedError
