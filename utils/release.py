@@ -1,3 +1,4 @@
+# Copied from https://github.com/huggingface/transformers/blob/b7e292aebdb638e2238cd9febf8c09253195fb5d/utils/release.py#L100
 import argparse
 import re
 
