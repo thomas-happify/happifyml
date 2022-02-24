@@ -1,6 +1,4 @@
 import argparse
-from email.policy import default
-import os
 import re
 
 import git
@@ -15,14 +13,17 @@ REPLACE_FILES = {
     "init": "happifyml/__init__.py",
     "setup": "setup.py",
 }
+
+
 def get_version():
     """Reads the current version in the __init__."""
     with open(REPLACE_FILES["init"], "r") as f:
         code = f.read()
     default_version = REPLACE_PATTERNS["init"][0].search(code).groups()[0]
     return packaging.version.parse(default_version)
-    
-def update_version_in_file(fname, version, pattern):
+
+
+def bump_version_in_file(fname, version, pattern):
     """Update the version in one file using a specific pattern."""
     with open(fname, "r", encoding="utf-8", newline="\n") as f:
         code = f.read()
@@ -33,10 +34,10 @@ def update_version_in_file(fname, version, pattern):
         f.write(code)
 
 
-def global_version_update(version, patch=False):
+def bump_global_version(version, patch=False):
     """Update the version in all needed files."""
     for pattern, fname in REPLACE_FILES.items():
-        update_version_in_file(fname, version, pattern)
+        bump_version_in_file(fname, version, pattern)
 
 
 def run_pre_release(patch=False):
@@ -58,7 +59,7 @@ def run_pre_release(patch=False):
         version = default_version
 
     print(f"Updating version to {version}.")
-    global_version_update(version, patch=patch)
+    bump_global_version(version, patch=patch)
 
 
 def run_post_release():
@@ -80,7 +81,7 @@ def run_post_release():
         commit = version_commit
 
     print(f"Updating version to {version}.")
-    global_version_update(version)
+    bump_global_version(version)
 
 
 def run_post_patch():

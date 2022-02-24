@@ -55,7 +55,7 @@ print(find_namespace_packages())
 
 setup(
     name="happifyml",
-    version="0.0.1.dev0",
+    version="0.0.1",
     description="Happify Health Inc. MLOps package",
     long_description=open("README.md").read(),
     long_description_content_type="text/markdown",
