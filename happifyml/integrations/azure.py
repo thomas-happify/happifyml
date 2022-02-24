@@ -81,10 +81,10 @@ class AzureML:
         self.workspace = Workspace(**self.credentials)
 
     @staticmethod
-    def login(subscription_id=None, resource_group=None, workspace_name=None):
-
+    def login(subscription_id=None, resource_group=None, workspace_name=None, relogin=False):
+        
         azure_cred = AzureCredentials.get()
-        if not azure_cred:
+        if not azure_cred or relogin:
             print("Find Azure properties in browser here: https://portal.azure.com/")
             try:
                 subscription_id = questionary.text("subscription_id:").unsafe_ask()
@@ -114,8 +114,6 @@ class AzureML:
 
     @staticmethod
     def relogin(subscription_id=None, resource_group=None, workspace_name=None):
-        # delete existing Azure credentials
-        AzureCredentials.delete()
         return AzureML.login(subscription_id, resource_group, workspace_name)
 
     @staticmethod
@@ -148,7 +146,7 @@ class AzureML:
         for model in model_dict:
             print(model_dict[model].id)
 
-    def submit_training(self, command, experiment_name, docker_name, num_nodes, compute_target=None, **kwargs) -> None:
+    def submit_training(self, command, experiment_name, base_docker, num_nodes, compute_target=None, **kwargs) -> None:
         from azureml.core import Environment, Experiment, ScriptRunConfig
         from azureml.core.runconfig import DockerConfiguration, MpiConfiguration
 
@@ -159,18 +157,10 @@ class AzureML:
         # TODO(Thoams) parse environment for:
         # 1. pytorch version
         # 2. base_docker cuda, cudnn version
-        # env = Environment.from_conda_specification(experiment_name, "environment.yaml")
-        # env.docker.base_image = base_docker
-        # env.register(self.workspace)
+        env = Environment.from_conda_specification(experiment_name, "environment.yaml")
+        env.docker.base_image = base_docker
+        env.register(self.workspace)
         # docker_config = DockerConfiguration(use_docker=True)
-
-        try:
-            env = Environment.get(workspace=self.workspace, name=docker_name)
-        except:
-            env = Environment(name=docker_name)
-            env.docker.base_image = f"thomasyue/happifyml:{docker_name}"
-            env.python.user_managed_dependencies = True
-            env.register(self.workspace)
 
 
         # set environment variables
@@ -192,12 +182,8 @@ class AzureML:
             compute_target=compute_target,
             environment=env,
             distributed_job_config=MpiConfiguration(node_count=num_nodes) if num_nodes > 1 else None,
-            docker_runtime_config=docker_config,
+            # docker_runtime_config=docker_config,
         )
 
         run = experiment.submit(config)
         run.wait_for_completion(show_output=True)
-
-    @staticmethod
-    def set_multinode_environment():
-        pass

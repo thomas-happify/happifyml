@@ -1,15 +1,15 @@
 import os
 import sys
-from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace, REMAINDER
+from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 from pathlib import Path
 from typing import List
 
 import questionary
-from happifyml.utils.cli import print_error_exit, print_success, print_success_exit
+from happifyml.utils import print_error_exit, print_success, print_success_exit
 
 # from ..integrations import azure
-from ..integrations.azure import AzureML
-from ..utils.credentials import AzureCredentials, HfCredentials, WandbCredentials
+from ..integrations import AzureML
+from ..utils import AzureCredentials, HfCredentials, WandbCredentials
 from . import SubParserAction
 
 file_suffix = (".py", ".sh")
@@ -37,11 +37,9 @@ def register(subparsers: SubParserAction, parents: List[ArgumentParser]) -> None
 
     for parser in parsers:
         parser.add_argument("training_command", nargs="*", help="training commands you will use on local machine.")
-        parser.add_argument("--register", type=str, default=False, help="run id")
-        parser.add_argument("--model-name", required="--register" in sys.argv, type=str, help="model name")
-        parser.add_argument(
-            "--model-path", required="--register" in sys.argv, type=str, help="model path in experiment"
-        )
+        parser.add_argument("--relogin", action="store_true", help="relogin to Azure with different workspace")
+
+        # training arguments
         parser.add_argument("--experiment", type=str, default=current_dir, help="experiment name")
         parser.add_argument(
             "--base-docker",
@@ -49,15 +47,15 @@ def register(subparsers: SubParserAction, parents: List[ArgumentParser]) -> None
             default="mcr.microsoft.com/azureml/openmpi4.1.0-cuda11.1-cudnn8-ubuntu18.04",
             help="base docker image",
         )
-        parser.add_argument(
-            "--docker",
-            type=str,
-            default="thomasyue/happifyml:HappifyML-pytorch-1.8-cuda11-cudnn8",
-            help="docker image",
-        )
         parser.add_argument("--nodes", type=int, default=None, help="number of nodes")
-        parser.add_argument("--relogin", action="store_true", help="relogin to Azure with different workspace")
         parser.add_argument("--compute-name", type=str, default=False, help="compute target name")
+
+        # register models
+        parser.add_argument("--register", type=str, default=None, help="run id")
+        parser.add_argument("--model-name", required="--register" in sys.argv, type=str, help="model name")
+        parser.add_argument(
+            "--model-path", required="--register" in sys.argv, type=str, help="model path in experiment"
+        )
 
         if "azure" in parser.prog:
             parser.set_defaults(func=run_azure)
@@ -70,7 +68,7 @@ def run_azure(args: Namespace) -> None:
     # EX: `happifyml azure "bash script.sh && python script.py"``
     # If you do `happifyml azure bash script.sh && python script.py`, it's actually `happifyml azure bash script.sh` and `python script.py` 
     if args.relogin:
-        AzureML.relogin()
+        AzureML.login(relogin=True)
 
     if len(args.training_command) == 1:
         args.training_command = args.training_command[0].split()
@@ -119,10 +117,9 @@ def run_azure(args: Namespace) -> None:
         aml.submit_training(
             command=args.training_command,
             experiment_name=args.experiment,
-            # base_docker=args.base_docker,
-            docker_name=args.docker,
+            base_docker=args.base_docker,
             num_nodes=int(args.nodes),
-            compute_target=args.compute_target,
+            compute_target=args.compute_name,
             hf_cred=hf_cred,
             wandb_cred=wandb_cred,
         )

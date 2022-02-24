@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import List
 
 import questionary
-from happifyml.utils.cli import print_error_exit, print_success, print_success_exit
+from happifyml.utils import print_error_exit, print_success, print_success_exit
 
 from . import SubParserAction
 
@@ -71,16 +71,17 @@ def register(subparsers: SubParserAction, parents: List[ArgumentParser]) -> None
 
 
 def init_project(args: Namespace) -> None:
-    path = args.name
+    raise NotImplementedError
+    # path = args.name
 
-    if not os.path.isdir(path):
-        _ask_create(path)
+    # if not os.path.isdir(path):
+    #     _ask_create(path)
 
-    elif os.path.exists(path):
-        # if len(os.listdir(path)) > 0:
-        _ask_overwrite(path)
+    # elif os.path.exists(path):
+    #     # if len(os.listdir(path)) > 0:
+    #     _ask_overwrite(path)
 
-    create_project(path)
+    # create_project(path)
 
 
 def _ask_create(path):

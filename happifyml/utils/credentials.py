@@ -49,8 +49,3 @@ class WandbCredentials(BaseCredentials):
 if __name__ == "__main__":
     cred = AzureCredentials.get()
     print(cred)
-
-    # HfCredentials.save("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")
-    # hf_cred = HfCredentials.get()
-    # print(hf_cred)
-    # HfCredentials.delete()
