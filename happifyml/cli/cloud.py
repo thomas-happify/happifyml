@@ -1,26 +1,32 @@
 import os
 import sys
-from argparse import REMAINDER, ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
+from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
 from pathlib import Path
 from typing import List
 
 import questionary
+from happifyml.utils import print_error_exit, print_success, print_success_exit
 
-from happifyml.utils.cli import print_error_exit, print_success, print_success_exit
-
+# from ..integrations import azure
+from ..integrations import AzureML
+from ..utils import AzureCredentials, HfCredentials, WandbCredentials
 from . import SubParserAction
-from .credentials import AzureCredentials, HfCredentials, WandbCredentials
+
+file_suffix = (".py", ".sh")
+current_dir = Path(os.getcwd()).name
 
 
 def register(subparsers: SubParserAction, parents: List[ArgumentParser]) -> None:
 
+    # Azure cloud parsers
     azure_parser = subparsers.add_parser(
         "azure",
         parents=parents,
-        help="submit argument to Azure cloud compute",
         formatter_class=ArgumentDefaultsHelpFormatter,
+        help="submit argument to Azure cloud compute",
     )
 
+    # Placeholder as an example for AWS cloud parsers
     aws_parser = subparsers.add_parser(
         "aws",
         parents=parents,
@@ -31,8 +37,26 @@ def register(subparsers: SubParserAction, parents: List[ArgumentParser]) -> None
     parsers = [azure_parser, aws_parser]
 
     for parser in parsers:
-        parser.add_argument("training_command", nargs=REMAINDER, help="Arguments of the training script.")
-        parser.add_argument("--config_file", type=str, metavar="FILE", help="path to config file")
+        parser.add_argument("training_command", nargs="*", help="training commands you will use on local machine.")
+        parser.add_argument("--relogin", action="store_true", help="relogin to Azure with different workspace")
+
+        # training arguments
+        parser.add_argument("--experiment", type=str, default=current_dir, help="experiment name")
+        parser.add_argument(
+            "--base-docker",
+            type=str,
+            default="mcr.microsoft.com/azureml/openmpi4.1.0-cuda11.1-cudnn8-ubuntu18.04",
+            help="base docker image",
+        )
+        parser.add_argument("--nodes", type=int, default=None, help="number of nodes")
+        parser.add_argument("--compute-name", type=str, default=False, help="compute target name")
+
+        # register models
+        parser.add_argument("--register", type=str, default=None, help="run id")
+        parser.add_argument("--model-name", required="--register" in sys.argv, type=str, help="model name")
+        parser.add_argument(
+            "--model-path", required="--register" in sys.argv, type=str, help="model path in experiment"
+        )
 
         if "azure" in parser.prog:
             parser.set_defaults(func=run_azure)
@@ -41,86 +65,65 @@ def register(subparsers: SubParserAction, parents: List[ArgumentParser]) -> None
 
 
 def run_azure(args: Namespace) -> None:
-    from azureml.core import Environment, Experiment, ScriptRunConfig, Workspace
-    from azureml.core.runconfig import PyTorchConfiguration
+    # work around solve training_command ambigiouty like "&&".
+    # EX: `happifyml azure "bash script.sh && python script.py"``
+    # If you do `happifyml azure bash script.sh && python script.py`, it's actually `happifyml azure bash script.sh` and `python script.py`
+    if args.relogin:
+        AzureML.login(relogin=True)
 
-    azure_cred = AzureCredentials.get()
+    if len(args.training_command) == 1:
+        args.training_command = args.training_command[0].split()
+
+    # simple sanity check if training_command file exists
+    for item in args.training_command:
+        if item.endswith(file_suffix):
+            if not os.path.exists(item):
+                print_error_exit(f"{item} not found.")
+
+    # initialize aml and get credentials
+    aml = AzureML()
     hf_cred = HfCredentials.get()
     wandb_cred = WandbCredentials.get()
 
-    try:
-        if not azure_cred:
-            print("Find Azure properties in browser here: https://portal.azure.com/")
-            subscription_id = questionary.text("subscription_id:").unsafe_ask()
-            resource_group = questionary.text("resource_group:").unsafe_ask()
-            workspace_name = questionary.text("workspace_name:").unsafe_ask()
-            azure_cred = {
-                "subscription_id": subscription_id,
-                "resource_group": resource_group,
-                "workspace_name": workspace_name,
-            }
-            AzureCredentials.save(azure_cred)
+    if not hf_cred:
+        print("Find HF token in browser here: https://huggingface.co/settings/token")
+        hf_cred = questionary.text("Huggingface User Access Token: ").unsafe_ask()
+        HfCredentials.save(hf_cred)
 
-        if not hf_cred:
-            print("Find HF token in browser here: https://huggingface.co/settings/token")
-            hf_cred = questionary.text("Huggingface User Access Token: ").unsafe_ask()
-            HfCredentials.save(hf_cred)
+    if not wandb_cred:
+        print("Find API key in browser here: https://wandb.ai/authorize")
+        wandb_cred = questionary.text("Wandb API Key: ").unsafe_ask()
+        WandbCredentials.save(wandb_cred)
 
-        if not wandb_cred:
-            print("Find API key in browser here: https://wandb.ai/authorize")
-            wandb_cred = questionary.text("Wandb API Key: ").unsafe_ask()
-            WandbCredentials.save(wandb_cred)
+    if args.register:
+        aml.register_model(run_id=args.register, model_name=args.model_name, model_remote_path=args.model_path)
 
-    except KeyboardInterrupt:
-        print_success_exit("Cancelled, Run `happifyml azure` at any time to start distributed training")
+    elif args.training_command:
+        print(f"Current Workspace: {aml.credentials['workspace_name']}")
 
-    # access workspace
-    ws = Workspace(**azure_cred)
+        # if args.nodes not specified, we simply look for "nodes" if it's in training_command.
+        if not args.nodes:
+            for i, item in enumerate(args.training_command):
+                if "nodes" in item:
+                    if "=" in item:
+                        args.nodes = item.split("=", 1)[-1]
+                    else:
+                        # if "--nodes 2", nodes is the next index
+                        args.nodes = args.training_command[i + 1]
 
-    print(f"Workspace: {azure_cred['workspace_name']}")
+        # if still didn't find it, we prompt to ask
+        if not args.nodes:
+            args.nodes = questionary.text("Number of nodes not found, please enter number of nodes").unsafe_ask()
 
-    available_computes = ws.compute_targets.keys()
-
-    compute_target = questionary.select("Please choose compute", choices=available_computes).ask()
-
-    docker_name = "HappifyML-pytorch-1.8-cuda11-cudnn8"
-    try:
-        env = Environment.get(workspace=ws, name=docker_name)
-    except:
-        env = Environment(name=docker_name)
-        env.docker.base_image = f"thomasyue/happifyml:{docker_name}"
-        env.python.user_managed_dependencies = True
-        env.register(ws)
-
-    # set environment variables
-    env.environment_variables["WANDB_API_KEY"] = wandb_cred
-
-    # huggingface private keys for use_auth_token when pushes to hub
-    # https://github.com/huggingface/transformers/blob/f21bc4215aa979a5f11a4988600bc84ad96bef5f/src/transformers/file_utils.py#L2508
-    # for more advance usage: https://github.com/aws/sagemaker-huggingface-inference-toolkit/blob/722edfbe255763637f69b9d14a05045e8771412b/src/sagemaker_huggingface_inference_toolkit/transformers_utils.py#L165
-    env.environment_variables["HF_API_KEY"] = hf_cred
-    
-    # Azure credentials
-    env.environment_variables["AZURE_SUBSCRIPTION_ID"] = azure_cred["subscription_id"]
-    env.environment_variables["AZURE_RESOURCE_GROUP"] = azure_cred["resource_group"]
-    env.environment_variables["AZURE_WORKSPACE_NAME"] = azure_cred["workspace_name"]
-
-    experiment = Experiment(workspace=ws, name="test_gpt_gpu")
-
-    # TODO: should extract arguments from yaml files instead of arguments which is less accurate.
-    # num_nodes = int([arg for arg in args.training_command if "node" in arg][0].split("=")[-1])
-    num_nodes = 1
-
-    config = ScriptRunConfig(
-        source_directory="./",
-        command=args.training_command,
-        compute_target=compute_target,
-        environment=env,
-        distributed_job_config=PyTorchConfiguration(node_count=num_nodes),
-    )
-
-    run = experiment.submit(config)
-    run.wait_for_completion(show_output=True)
+        aml.submit_training(
+            command=args.training_command,
+            experiment_name=args.experiment,
+            base_docker=args.base_docker,
+            num_nodes=int(args.nodes),
+            compute_target=args.compute_name,
+            hf_cred=hf_cred,
+            wandb_cred=wandb_cred,
+        )
 
 
 def run_aws(args: Namespace) -> None:

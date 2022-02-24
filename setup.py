@@ -67,7 +67,7 @@ setup(
     author_email="thomas@happify.com",
     url="https://github.com/thomas-happify/happifyml",
     # extras_require=extras,
-    entry_points={"console_scripts": ["happifyml=happifyml.__main__:main"]},
+    entry_points={"console_scripts": ["hml=happifyml.__main__:main"]},
     install_requires=install_requires,
     packages=find_packages(),
     include_package_data=True,  # configered in MANIFEST.in to include extra files weren't included in find_packages()

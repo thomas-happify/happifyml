@@ -1,11 +1,7 @@
-import os
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, Namespace
-from pathlib import Path
 from typing import List
 
-import questionary
-
-from happifyml.utils.cli import print_error_exit, print_success, print_success_exit
+from happifyml.utils import print_error_exit, print_success, print_success_exit
 
 from . import SubParserAction
 
@@ -34,7 +30,7 @@ def register(subparsers: SubParserAction, parents: List[ArgumentParser]) -> None
 
 def run_deployment(args: Namespace) -> None:
     import time
-    
+
     print("⌛ Allocating Kubernetes resources...")
     time.sleep(4)
     print("✅ View deployment: http://localhost:8888/")
