@@ -15,6 +15,7 @@ from . import SubParserAction
 file_suffix = (".py", ".sh")
 current_dir = Path(os.getcwd()).name
 
+
 def register(subparsers: SubParserAction, parents: List[ArgumentParser]) -> None:
 
     # Azure cloud parsers
@@ -66,7 +67,7 @@ def register(subparsers: SubParserAction, parents: List[ArgumentParser]) -> None
 def run_azure(args: Namespace) -> None:
     # work around solve training_command ambigiouty like "&&".
     # EX: `happifyml azure "bash script.sh && python script.py"``
-    # If you do `happifyml azure bash script.sh && python script.py`, it's actually `happifyml azure bash script.sh` and `python script.py` 
+    # If you do `happifyml azure bash script.sh && python script.py`, it's actually `happifyml azure bash script.sh` and `python script.py`
     if args.relogin:
         AzureML.login(relogin=True)
 
@@ -100,7 +101,7 @@ def run_azure(args: Namespace) -> None:
     elif args.training_command:
         print(f"Current Workspace: {aml.credentials['workspace_name']}")
 
-        #if args.nodes not specified, we simply look for "nodes" if it's in training_command.
+        # if args.nodes not specified, we simply look for "nodes" if it's in training_command.
         if not args.nodes:
             for i, item in enumerate(args.training_command):
                 if "nodes" in item:
@@ -108,7 +109,7 @@ def run_azure(args: Namespace) -> None:
                         args.nodes = item.split("=", 1)[-1]
                     else:
                         # if "--nodes 2", nodes is the next index
-                        args.nodes = args.training_command[i+1]
+                        args.nodes = args.training_command[i + 1]
 
         # if still didn't find it, we prompt to ask
         if not args.nodes:
@@ -123,6 +124,7 @@ def run_azure(args: Namespace) -> None:
             hf_cred=hf_cred,
             wandb_cred=wandb_cred,
         )
+
 
 def run_aws(args: Namespace) -> None:
     raise NotImplementedError

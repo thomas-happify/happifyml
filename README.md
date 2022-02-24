@@ -1,6 +1,6 @@
 <div align="center">
 
-# Happify ML 
+# Happify ML
 
 <h3 align="center">
     <p>Happify AI team MLOps Solution for Centralized, Flexible and Reproducible Modeling</p>
@@ -18,7 +18,7 @@ pip install https://github.com/thomas-happify/happifyml.git
 
 ### Command Line Interface
 
-1. Submit training to Azure compute.
+1. Submit ANY training command to Azure compute.
 ```bash
 hml azure <your-local-training-arguments>
 
@@ -66,7 +66,7 @@ tokenizer = AutoTokenizer.from_pretrained(<remote path to you azure model>, work
 model = AutoModelForSequenceClassification.from_pretrained(<remote path to you azure model>, workspace=aml.workspace)
 
 # you then can push to the model to registry in 2 ways:
-# 1. 
+# 1.
 model.save_pretrained(<local-save-path>, push_to_azure=True)
 model.save_pretrained(<local-save-path>, push_to_azure=True, push_to_hub=True) # you can push to 2 places as well
 # 2.

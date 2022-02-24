@@ -82,7 +82,7 @@ class AzureML:
 
     @staticmethod
     def login(subscription_id=None, resource_group=None, workspace_name=None, relogin=False):
-        
+
         azure_cred = AzureCredentials.get()
         if not azure_cred or relogin:
             print("Find Azure properties in browser here: https://portal.azure.com/")
@@ -117,7 +117,12 @@ class AzureML:
         return AzureML.login(subscription_id, resource_group, workspace_name)
 
     @staticmethod
-    def push(workspace: Optional[Workspace]=None, run_id: Optional[str]=None, model_remote_path: Optional[str]=None, model_name: Optional[str]=None):
+    def push(
+        workspace: Optional[Workspace] = None,
+        run_id: Optional[str] = None,
+        model_remote_path: Optional[str] = None,
+        model_name: Optional[str] = None,
+    ):
         from azureml.core.run import Run
 
         # if model_name not available, we use model folder name by default
@@ -161,7 +166,6 @@ class AzureML:
         env.docker.base_image = base_docker
         env.register(self.workspace)
         # docker_config = DockerConfiguration(use_docker=True)
-
 
         # set environment variables
         env.environment_variables["AZURE_SUBSCRIPTION_ID"] = self.credentials["subscription_id"]

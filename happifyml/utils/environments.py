@@ -1,5 +1,6 @@
 import os
 
+
 def set_az_pl_environment_variables(single_node=False, master_port=6105):
     if not single_node:
         master_node_params = os.environ["AZ_BATCH_MASTER_NODE"].split(":")
@@ -14,7 +15,7 @@ def set_az_pl_environment_variables(single_node=False, master_port=6105):
 
     os.environ["NCCL_SOCKET_IFNAME"] = "^docker0,lo"
     os.environ["NODE_RANK"] = os.environ["OMPI_COMM_WORLD_RANK"]
-    
+
     # additional variables
     os.environ["MASTER_ADDRESS"] = os.environ["MASTER_ADDR"]
     os.environ["LOCAL_RANK"] = os.environ["OMPI_COMM_WORLD_LOCAL_RANK"]
