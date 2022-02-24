@@ -51,15 +51,11 @@ install_requires = [
     deps["psutil"],
 ]
 
-VERSION = {}  # type: ignore
-with open("happifyml/version.py", "r") as version_file:
-    exec(version_file.read(), VERSION)
-
 print(find_namespace_packages())
 
 setup(
     name="happifyml",
-    version=VERSION["VERSION"],
+    version="0.0.1",
     description="Happify Health Inc. MLOps package",
     long_description=open("README.md").read(),
     long_description_content_type="text/markdown",
