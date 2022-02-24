@@ -62,8 +62,8 @@ class AutoTokenizer(AzureMixin, AutoTokenizer):
 
 aml = AzureML()
 
-tokenizer = AutoTokenizer.from_pretrained(<remote path to you azure model>, workspace=aml.workspace)
-model = AutoModelForSequenceClassification.from_pretrained(<remote path to you azure model>, workspace=aml.workspace)
+tokenizer = AutoTokenizer.from_pretrained(<remote-path-to-your-azure-model>, workspace=aml.workspace)
+model = AutoModelForSequenceClassification.from_pretrained(<remote-path-to-your-azure-model>, workspace=aml.workspace)
 
 # you then can push to the model to registry in 2 ways:
 # 1.
