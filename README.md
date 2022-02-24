@@ -38,7 +38,7 @@ hml azure --relogin
 
 4. [TODO] Initialize research template
 ```bash
-hml azure <project-name>
+hml init <project-name>
 ```
 
 5. [TODO] Model deployment
