@@ -11,7 +11,7 @@
 
 ## 🐳 Installation
 ```
-pip install https://github.com/thomas-happify/happifyml.git
+pip install git+https://github.com/thomas-happify/happifyml.git
 ```
 
 ## 🚀 Quickstart
