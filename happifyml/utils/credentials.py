@@ -1,5 +1,6 @@
 import json
 import os
+from .cli import print_error_exit 
 
 
 class BaseCredentials:
@@ -23,7 +24,7 @@ class BaseCredentials:
                 else:
                     return f.read()
         except FileNotFoundError:
-            pass
+            print_error_exit("Credential not found, please login via `hml azure --login` or provide the correct credentials")
 
     @classmethod
     def delete(cls):
@@ -38,11 +39,20 @@ class AzureCredentials(BaseCredentials):
 
     @classmethod
     def get(cls, name=None):
-        credential = super(AzureCredentials, cls).get()
+        try:
+            # try to find it in environment variables first
+            credential = {
+                "subscription_id": os.environ["AZURE_SUBSCRIPTION_ID"],
+                "resource_group": os.environ["AZURE_RESOURCE_GROUP"],
+                "workspace_name": os.environ["AZURE_WORKSPACE_NAME"]
+            }
+        except KeyError:
+            credential = super(AzureCredentials, cls).get()
+
         if name:
-            credential['workspace_name'] = name
+            credential["workspace_name"] = name
         return credential
-    
+
 
 class HfCredentials(BaseCredentials):
     # based on https://github.com/huggingface/huggingface_hub/blob/46843f5bb34bdbe21ea22b00e86edca81bef7e80/src/huggingface_hub/hf_api.py#L1449

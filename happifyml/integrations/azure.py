@@ -70,9 +70,11 @@ class AzureMixin:
                 # use default workspace
                 workspace_name = None
 
+            # get credentials
             credential = AzureCredentials.get(workspace_name)
             workspace = Workspace(**credential)
 
+            
             AzureMixin.push_to_azure(save_directory, workspace)
 
     @staticmethod
@@ -89,10 +91,10 @@ class AzureML:
         self.workspace = Workspace(**self.credentials)
 
     @staticmethod
-    def login(subscription_id=None, resource_group=None, workspace_name=None, relogin=False):
+    def login(subscription_id=None, resource_group=None, workspace_name=None):
 
         azure_cred = AzureCredentials.get()
-        if not azure_cred or relogin:
+        if not azure_cred:
             print("Find Azure properties in browser here: https://portal.azure.com/")
             try:
                 subscription_id = questionary.text("subscription_id:").unsafe_ask()
@@ -119,10 +121,6 @@ class AzureML:
             AzureCredentials.save(azure_cred)
 
         return azure_cred
-
-    @staticmethod
-    def relogin(subscription_id=None, resource_group=None, workspace_name=None):
-        return AzureML.login(subscription_id, resource_group, workspace_name)
 
     @staticmethod
     def push(

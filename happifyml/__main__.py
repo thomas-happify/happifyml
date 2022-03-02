@@ -4,8 +4,8 @@ import os
 import platform
 import sys
 
-from happifyml.cli import cloud, deployment, project
 from happifyml import __version__
+from happifyml.cli import cloud, deployment, project
 
 logger = logging.getLogger(__name__)
 
