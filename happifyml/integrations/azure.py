@@ -74,7 +74,6 @@ class AzureMixin:
             credential = AzureCredentials.get(workspace_name)
             workspace = Workspace(**credential)
 
-            
             AzureMixin.push_to_azure(save_directory, workspace)
 
     @staticmethod
