@@ -34,8 +34,15 @@ class BaseCredentials:
 
 
 class AzureCredentials(BaseCredentials):
-    credential_path = os.path.join(BaseCredentials.credential_path, "azure_config.json")
+    credential_path = os.path.join(BaseCredentials.credential_path, "azure_configs.json")
 
+    @classmethod
+    def get(cls, name=None):
+        credential = super(AzureCredentials, cls).get()
+        if name:
+            credential['workspace_name'] = name
+        return credential
+    
 
 class HfCredentials(BaseCredentials):
     # based on https://github.com/huggingface/huggingface_hub/blob/46843f5bb34bdbe21ea22b00e86edca81bef7e80/src/huggingface_hub/hf_api.py#L1449

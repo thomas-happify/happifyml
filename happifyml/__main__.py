@@ -5,7 +5,7 @@ import platform
 import sys
 
 from happifyml.cli import cloud, deployment, project
-from happifyml.version import VERSION
+from happifyml import __version__
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +34,7 @@ def get_parser() -> argparse.ArgumentParser:
 
 
 def print_version() -> None:
-    print(f"HappifyML Version : {VERSION}")
+    print(f"HappifyML Version : {__version__}")
     print(f"Python Version    : {platform.python_version()}")
     print(f"Operating System  : {platform.platform()}")
     print(f"Interpreter Path  : {sys.executable}")
