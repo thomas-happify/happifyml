@@ -1,0 +1,42 @@
+# Actions train a model on Azure Machine Learning
+name: aml-train-deploy-workflow
+
+env:
+  WS_CREDENTIALS: ${{ secrets.WS_CREDENTIALS }}
+  
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+    inputs:
+      tasks:
+        description: 'task type'
+        required: true
+        options:
+          - pnn
+          - intent
+
+jobs:
+  train:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Copy over azure credentials
+        run: |
+          echo $WS_CREDENTIALS
+          mkdir -p ~/.happifyml/credentials/ && touch ~/.happifyml/credentials/azure_configs.json
+          echo $WS_CREDENTIALS >> ~/.happifyml/credentials/azure_configs.json
+          cat ~/.happifyml/credentials/azure_configs.json
+          
+      - name: Set up Python 3.8
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.8
+
+      - name: "Store Azure Workspace Credentials for HappifyML"
+        run: |
+          pip install git+https://github.com/thomas-happify/happifyml.git
+          pip install torch
+          pip install azureml-core
+
+      - name: Submit training
+        run: hml azure echo "hello" --compute-name v100-1-dedicated
