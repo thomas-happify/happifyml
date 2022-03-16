@@ -1,6 +1,8 @@
 import json
 import os
 
+from .cli import print_error_exit
+
 
 class BaseCredentials:
     credential_path = os.path.expanduser("~/.happifyml/credentials/")
@@ -23,7 +25,9 @@ class BaseCredentials:
                 else:
                     return f.read()
         except FileNotFoundError:
-            pass
+            print_error_exit(
+                "Credential not found, please login via `hml azure --login` or provide the correct credentials"
+            )
 
     @classmethod
     def delete(cls):
@@ -34,7 +38,23 @@ class BaseCredentials:
 
 
 class AzureCredentials(BaseCredentials):
-    credential_path = os.path.join(BaseCredentials.credential_path, "azure_config.json")
+    credential_path = os.path.join(BaseCredentials.credential_path, "azure_configs.json")
+
+    @classmethod
+    def get(cls, name=None):
+        try:
+            # try to find it in environment variables first
+            credential = {
+                "subscription_id": os.environ["AZURE_SUBSCRIPTION_ID"],
+                "resource_group": os.environ["AZURE_RESOURCE_GROUP"],
+                "workspace_name": os.environ["AZURE_WORKSPACE_NAME"],
+            }
+        except KeyError:
+            credential = super(AzureCredentials, cls).get()
+
+        if name:
+            credential["workspace_name"] = name
+        return credential
 
 
 class HfCredentials(BaseCredentials):

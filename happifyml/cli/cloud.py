@@ -38,7 +38,7 @@ def register(subparsers: SubParserAction, parents: List[ArgumentParser]) -> None
 
     for parser in parsers:
         parser.add_argument("training_command", nargs="*", help="training commands you will use on local machine.")
-        parser.add_argument("--relogin", action="store_true", help="relogin to Azure with different workspace")
+        parser.add_argument("--login", action="store_true", help="login/relogin to Azure with different workspace")
 
         # training arguments
         parser.add_argument("--experiment", type=str, default=current_dir, help="experiment name")
@@ -68,8 +68,8 @@ def run_azure(args: Namespace) -> None:
     # work around solve training_command ambigiouty like "&&".
     # EX: `happifyml azure "bash script.sh && python script.py"``
     # If you do `happifyml azure bash script.sh && python script.py`, it's actually `happifyml azure bash script.sh` and `python script.py`
-    if args.relogin:
-        AzureML.login(relogin=True)
+    if args.login:
+        AzureML.login()
 
     if len(args.training_command) == 1:
         args.training_command = args.training_command[0].split()

@@ -26,6 +26,9 @@ class AzureMixin:
         Download and initialize model from azure ml studio
         """
         if workspace and not os.path.isdir(pretrained_model_name_or_path):
+            credential = AzureCredentials.get(workspace)
+            workspace = Workspace(**credential)
+
             model = Model(workspace, pretrained_model_name_or_path, version=revision)
             print(f"Downloading {pretrained_model_name_or_path} from {workspace.name} model registry...")
             remote_path = model.download()
@@ -46,8 +49,7 @@ class AzureMixin:
         save_config: bool = True,
         state_dict: Optional[dict] = None,
         save_function: Callable = torch.save,
-        workspace: Optional[Workspace] = None,
-        push_to_azure: bool = False,
+        push_to_azure: Optional[Union[bool, str]] = False,
         push_to_hub: bool = False,
         **kwargs,
     ):
@@ -59,12 +61,19 @@ class AzureMixin:
         You can set push_to_azure=True, and push_to_hub=True at the same time which will push to 2 places.
         """
 
-        if push_to_azure and not workspace:
-            raise TypeError("push_to_azure requires Azure Workspace object")
-
         super().save_pretrained(save_directory, save_config, state_dict, save_function, push_to_hub, **kwargs)
 
         if push_to_azure:
+            if isinstance(push_to_azure, str):
+                workspace_name = push_to_azure
+            else:
+                # use default workspace
+                workspace_name = None
+
+            # get credentials
+            credential = AzureCredentials.get(workspace_name)
+            workspace = Workspace(**credential)
+
             AzureMixin.push_to_azure(save_directory, workspace)
 
     @staticmethod
@@ -81,10 +90,10 @@ class AzureML:
         self.workspace = Workspace(**self.credentials)
 
     @staticmethod
-    def login(subscription_id=None, resource_group=None, workspace_name=None, relogin=False):
+    def login(subscription_id=None, resource_group=None, workspace_name=None):
 
         azure_cred = AzureCredentials.get()
-        if not azure_cred or relogin:
+        if not azure_cred:
             print("Find Azure properties in browser here: https://portal.azure.com/")
             try:
                 subscription_id = questionary.text("subscription_id:").unsafe_ask()
@@ -111,10 +120,6 @@ class AzureML:
             AzureCredentials.save(azure_cred)
 
         return azure_cred
-
-    @staticmethod
-    def relogin(subscription_id=None, resource_group=None, workspace_name=None):
-        return AzureML.login(subscription_id, resource_group, workspace_name)
 
     @staticmethod
     def push(
